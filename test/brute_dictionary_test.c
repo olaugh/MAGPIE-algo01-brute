@@ -26,7 +26,7 @@ void word_lookup_linear_search(void) {
   Config *config = config_create_or_die("set -lex CSW21 -luwords true");
 
   const LetterDistribution *ld = config_get_ld(config);
-  PlayersData *players_data = config_get_players_data(config);
+  const PlayersData *players_data = config_get_players_data(config);
 
   // Get the shuffled word list from players data
   const DictionaryWordList *word_list =

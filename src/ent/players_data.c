@@ -104,8 +104,9 @@ WMP *players_data_get_wmp(const PlayersData *players_data, int player_index) {
                                       player_index);
 }
 
-DictionaryWordList *players_data_get_unsorted_words(const PlayersData *players_data,
-                                                     int player_index) {
+DictionaryWordList *
+players_data_get_unsorted_words(const PlayersData *players_data,
+                                int player_index) {
   return (DictionaryWordList *)players_data_get_data(
       players_data, PLAYERS_DATA_TYPE_UNSORTED_WORDS, player_index);
 }

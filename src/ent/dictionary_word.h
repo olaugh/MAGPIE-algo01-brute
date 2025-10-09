@@ -67,9 +67,9 @@ void dictionary_word_list_write_to_file(
 bool dictionary_word_list_contains_word_linear_search(
     const DictionaryWordList *dictionary_word_list, const DictionaryWord *word);
 
-// cppcheck-suppress constParameterPointer
 static inline void
-dictionary_word_list_shuffle(DictionaryWordList *word_list, uint64_t seed) {
+dictionary_word_list_shuffle(const DictionaryWordList *word_list,
+                             uint64_t seed) {
   int count = dictionary_word_list_get_count(word_list);
   if (count <= 1) {
     return;
