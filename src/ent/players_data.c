@@ -144,8 +144,6 @@ void *players_data_create_data(players_data_t players_data_type,
     }
     DictionaryWordList *word_list = dictionary_word_list_create();
     kwg_write_words(kwg, kwg_get_dawg_root_node_index(kwg), word_list, NULL);
-    printf("Lexicon %s has %d words.\n", kwg->name,
-           dictionary_word_list_get_count(word_list));
     kwg_destroy(kwg);
     // Use current time as seed for shuffle
     dictionary_word_list_shuffle(word_list, (uint64_t)time(NULL));

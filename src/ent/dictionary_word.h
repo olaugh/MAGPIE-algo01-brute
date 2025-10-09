@@ -81,10 +81,11 @@ dictionary_word_list_shuffle(DictionaryWordList *word_list, uint64_t seed) {
     int j = (int)prng_get_random_number(prng, i + 1);
 
     // Swap words at positions i and j
-    DictionaryWord temp = *dictionary_word_list_get_word(word_list, i);
-    *dictionary_word_list_get_word(word_list, i) =
-        *dictionary_word_list_get_word(word_list, j);
-    *dictionary_word_list_get_word(word_list, j) = temp;
+    DictionaryWord *word_i = dictionary_word_list_get_word(word_list, i);
+    DictionaryWord *word_j = dictionary_word_list_get_word(word_list, j);
+    DictionaryWord temp = *word_i;
+    *word_i = *word_j;
+    *word_j = temp;
   }
 
   prng_destroy(prng);
