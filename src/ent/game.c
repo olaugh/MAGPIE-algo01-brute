@@ -10,6 +10,7 @@
 #include "../util/string_util.h"
 #include "bag.h"
 #include "board.h"
+#include "dictionary_word.h"
 #include "kwg.h"
 #include "kwg_alpha.h"
 #include "letter_distribution.h"
@@ -258,9 +259,130 @@ static inline void game_gen_alpha_cross_set(Game *game, int row, int col,
   board_set_cross_score(board, row, col, dir, cross_set_index, score);
 }
 
+// Brute-force linear search version of cross-set generation
+// This exhaustively tries all letters A-Z at the position and checks if they
+// form valid words using linear search through the unsorted word list.
+static inline void game_gen_classic_cross_set_linear(const Game *game, int row,
+                                                     int col, int dir,
+                                                     int cross_set_index) {
+  if (!board_is_position_in_bounds(row, col)) {
+    return;
+  }
+
+  Board *board = game_get_board(game);
+
+  if (board_is_nonempty_or_bricked(board, row, col)) {
+    board_set_cross_set(board, row, col, dir, cross_set_index, 0);
+    board_set_cross_score(board, row, col, dir, cross_set_index, 0);
+    return;
+  }
+  if (board_are_left_and_right_empty(board, row, col)) {
+    board_set_cross_set(board, row, col, dir, cross_set_index,
+                        TRIVIAL_CROSS_SET);
+    board_set_cross_score(board, row, col, dir, cross_set_index, 0);
+    return;
+  }
+
+  const DictionaryWordList *word_list =
+      player_get_unsorted_words(game_get_player(game, cross_set_index));
+  const LetterDistribution *ld = game_get_ld(game);
+
+  const int through_dir = board_toggle_dir(dir);
+
+  const int left_col =
+      board_get_word_edge(board, row, col - 1, WORD_DIRECTION_LEFT);
+  const int right_col =
+      board_get_word_edge(board, row, col + 1, WORD_DIRECTION_RIGHT);
+
+  // Build the word by reading letters from the board
+  DictionaryWord candidate_word;
+  int word_length = 0;
+
+  // Add letters from the left (unblanked)
+  for (int c = left_col; c < col; c++) {
+    candidate_word.word[word_length++] =
+        get_unblanked_machine_letter(board_get_letter(board, row, c));
+  }
+
+  // Save position where we'll inject the test letter
+  const int inject_pos = word_length;
+
+  // Add placeholder for the letter we'll test
+  word_length++;
+
+  // Add letters from the right (unblanked)
+  for (int c = col + 1; c <= right_col; c++) {
+    candidate_word.word[word_length++] =
+        get_unblanked_machine_letter(board_get_letter(board, row, c));
+  }
+
+  candidate_word.length = (uint8_t)word_length;
+
+  // Calculate cross score
+  Equity score = 0;
+  for (int c = left_col; c < col; c++) {
+    score += ld_get_score(ld, board_get_letter(board, row, c));
+  }
+  for (int c = col + 1; c <= right_col; c++) {
+    score += ld_get_score(ld, board_get_letter(board, row, c));
+  }
+
+  // Try each letter A-Z
+  uint64_t letter_set = 0;
+  const int ld_size = ld_get_size(ld);
+  for (MachineLetter ml = 0; ml < ld_size; ml++) {
+    // Skip blank
+    if (ml == BLANK_MACHINE_LETTER) {
+      continue;
+    }
+
+    // Inject this letter into the candidate word
+    candidate_word.word[inject_pos] = ml;
+
+    // Check if this word exists in the dictionary
+    if (dictionary_word_list_contains_word_linear_search(word_list,
+                                                         &candidate_word)) {
+      letter_set |= get_cross_set_bit(ml);
+    }
+  }
+
+  board_set_cross_set_with_blank(board, row, col, dir, cross_set_index,
+                                 letter_set);
+  board_set_cross_score(board, row, col, dir, cross_set_index, score);
+
+  // Set all leftx/rightx extension sets to TRIVIAL to disable optimizations
+  // since we can't easily compute them with linear search
+  if (left_col < col) {
+    board_set_left_extension_set_with_blank(board, row, col - 1, through_dir,
+                                            cross_set_index, TRIVIAL_CROSS_SET);
+    board_set_right_extension_set_with_blank(
+        board, row, col - 1, through_dir, cross_set_index, TRIVIAL_CROSS_SET);
+    if (left_col > 0) {
+      board_set_left_extension_set_with_blank(board, row, left_col - 1,
+                                              through_dir, cross_set_index,
+                                              TRIVIAL_CROSS_SET);
+    }
+  }
+  if (right_col > col) {
+    board_set_left_extension_set_with_blank(board, row, right_col, through_dir,
+                                            cross_set_index, TRIVIAL_CROSS_SET);
+    board_set_right_extension_set_with_blank(
+        board, row, right_col, through_dir, cross_set_index, TRIVIAL_CROSS_SET);
+    board_set_left_extension_set_with_blank(board, row, col, through_dir,
+                                            cross_set_index, TRIVIAL_CROSS_SET);
+  }
+}
+
 static inline void game_gen_classic_cross_set(const Game *game, int row,
                                               int col, int dir,
                                               int cross_set_index) {
+  // Use linear search version if unsorted words are loaded
+  const DictionaryWordList *word_list =
+      player_get_unsorted_words(game_get_player(game, cross_set_index));
+  if (word_list) {
+    game_gen_classic_cross_set_linear(game, row, col, dir, cross_set_index);
+    return;
+  }
   if (!board_is_position_in_bounds(row, col)) {
     return;
   }
