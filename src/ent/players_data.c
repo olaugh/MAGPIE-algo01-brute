@@ -9,6 +9,7 @@
 #include "klv.h"
 #include "kwg.h"
 #include "wmp.h"
+#include <stdint.h>
 #include <stdlib.h>
 #include <time.h>
 

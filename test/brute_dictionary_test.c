@@ -11,7 +11,7 @@
 #include <stdint.h>
 
 static DictionaryWord create_word_from_string(const LetterDistribution *ld,
-                                               const char *human_readable_word) {
+                                              const char *human_readable_word) {
   DictionaryWord word;
   int length = (int)string_length(human_readable_word);
   ld_str_to_mls(ld, human_readable_word, false, word.word, length);
@@ -21,14 +21,16 @@ static DictionaryWord create_word_from_string(const LetterDistribution *ld,
 
 void word_lookup_linear_search(void) {
   // Create Config with CSW21 dictionary and enable loading unsorted words
-  // -luwords enables loading of unsorted words (disabled by default for performance)
+  // -luwords enables loading of unsorted words (disabled by default for
+  // performance)
   Config *config = config_create_or_die("set -lex CSW21 -luwords true");
 
   const LetterDistribution *ld = config_get_ld(config);
   PlayersData *players_data = config_get_players_data(config);
 
   // Get the shuffled word list from players data
-  const DictionaryWordList *word_list = players_data_get_unsorted_words(players_data, 0);
+  const DictionaryWordList *word_list =
+      players_data_get_unsorted_words(players_data, 0);
 
   // Create test words
   DictionaryWord brute = create_word_from_string(ld, "BRUTE");
@@ -37,10 +39,14 @@ void word_lookup_linear_search(void) {
   DictionaryWord olaugh = create_word_from_string(ld, "OLAUGH");
 
   // Perform checks
-  assert(dictionary_word_list_contains_word_linear_search(word_list, &brute) == true);
-  assert(dictionary_word_list_contains_word_linear_search(word_list, &aa) == true);
-  assert(dictionary_word_list_contains_word_linear_search(word_list, &zzzs) == true);
-  assert(dictionary_word_list_contains_word_linear_search(word_list, &olaugh) == false);
+  assert(dictionary_word_list_contains_word_linear_search(word_list, &brute) ==
+         true);
+  assert(dictionary_word_list_contains_word_linear_search(word_list, &aa) ==
+         true);
+  assert(dictionary_word_list_contains_word_linear_search(word_list, &zzzs) ==
+         true);
+  assert(dictionary_word_list_contains_word_linear_search(word_list, &olaugh) ==
+         false);
 
   // Cleanup
   config_destroy(config);
