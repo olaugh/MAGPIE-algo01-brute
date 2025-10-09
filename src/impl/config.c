@@ -96,6 +96,7 @@ typedef enum {
   ARG_TOKEN_MIN_PLAY_ITERATIONS,
   ARG_TOKEN_USE_GAME_PAIRS,
   ARG_TOKEN_USE_SMALL_PLAYS,
+  ARG_TOKEN_LOAD_UNSORTED_WORDS,
   ARG_TOKEN_SIM_WITH_INFERENCE,
   ARG_TOKEN_WRITE_BUFFER_SIZE,
   ARG_TOKEN_HUMAN_READABLE,
@@ -159,6 +160,7 @@ struct Config {
   bool use_game_pairs;
   bool human_readable;
   bool use_small_plays;
+  bool load_unsorted_words;
   bool sim_with_inference;
   bool print_boards;
   char *record_filepath;
@@ -329,6 +331,14 @@ bool config_get_use_small_plays(const Config *config) {
 
 bool config_get_human_readable(const Config *config) {
   return config->human_readable;
+}
+
+bool config_get_load_unsorted_words(const Config *config) {
+  return config->load_unsorted_words;
+}
+
+void config_set_load_unsorted_words(Config *config, bool load_unsorted_words) {
+  config->load_unsorted_words = load_unsorted_words;
 }
 
 PlayersData *config_get_players_data(const Config *config) {
@@ -1950,13 +1960,15 @@ void config_load_lexicon_dependent_data(Config *config,
     return;
   }
 
-  // Load unsorted words from the KWG
-  players_data_set(config->players_data, PLAYERS_DATA_TYPE_UNSORTED_WORDS,
-                   config->data_paths, updated_p1_lexicon_name,
-                   updated_p2_lexicon_name, error_stack);
+  // Optionally load unsorted words if enabled
+  if (config->load_unsorted_words) {
+    players_data_set(config->players_data, PLAYERS_DATA_TYPE_UNSORTED_WORDS,
+                     config->data_paths, updated_p1_lexicon_name,
+                     updated_p2_lexicon_name, error_stack);
 
-  if (!error_stack_is_empty(error_stack)) {
-    return;
+    if (!error_stack_is_empty(error_stack)) {
+      return;
+    }
   }
 
   // Load lexica (in WMP format)
@@ -2240,6 +2252,12 @@ void config_load_data(Config *config, ErrorStack *error_stack) {
 
   config_load_bool(config, ARG_TOKEN_USE_SMALL_PLAYS, &config->use_small_plays,
                    error_stack);
+  if (!error_stack_is_empty(error_stack)) {
+    return;
+  }
+
+  config_load_bool(config, ARG_TOKEN_LOAD_UNSORTED_WORDS,
+                   &config->load_unsorted_words, error_stack);
   if (!error_stack_is_empty(error_stack)) {
     return;
   }
@@ -2791,6 +2809,7 @@ void config_create_default_internal(Config *config, ErrorStack *error_stack,
   arg(ARG_TOKEN_EQ_MARGIN_MOVEGEN, "maxequitydifference", 1, 1);
   arg(ARG_TOKEN_USE_GAME_PAIRS, "gp", 1, 1);
   arg(ARG_TOKEN_USE_SMALL_PLAYS, "sp", 1, 1);
+  arg(ARG_TOKEN_LOAD_UNSORTED_WORDS, "luwords", 1, 1);
   arg(ARG_TOKEN_SIM_WITH_INFERENCE, "sinfer", 1, 1);
   arg(ARG_TOKEN_HUMAN_READABLE, "hr", 1, 1);
   arg(ARG_TOKEN_WRITE_BUFFER_SIZE, "wb", 1, 1);
@@ -2832,6 +2851,7 @@ void config_create_default_internal(Config *config, ErrorStack *error_stack,
   config->use_game_pairs = false;
   config->use_small_plays = false;
   config->human_readable = false;
+  config->load_unsorted_words = false;
   config->sim_with_inference = false;
   config->print_boards = false;
   config->game_variant = DEFAULT_GAME_VARIANT;

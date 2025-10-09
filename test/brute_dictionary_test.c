@@ -20,13 +20,14 @@ static DictionaryWord create_word_from_string(const LetterDistribution *ld,
 }
 
 void word_lookup_linear_search(void) {
-  // Create Config with CSW24 dictionary
-  // This automatically creates the unsorted words list
-  Config *config = config_create_or_die("set -lex CSW24");
+  // Create Config with CSW21 dictionary and enable loading unsorted words
+  // -luwords enables loading of unsorted words (disabled by default for performance)
+  Config *config = config_create_or_die("set -lex CSW21 -luwords true");
+
   const LetterDistribution *ld = config_get_ld(config);
   PlayersData *players_data = config_get_players_data(config);
 
-  // Get the shuffled word list from players data (automatically created)
+  // Get the shuffled word list from players data
   const DictionaryWordList *word_list = players_data_get_unsorted_words(players_data, 0);
 
   // Create test words
