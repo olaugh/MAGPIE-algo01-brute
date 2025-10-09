@@ -180,9 +180,11 @@ void dictionary_word_list_destroy(DictionaryWordList *dictionary_word_list) {
 }
 
 bool dictionary_word_list_contains_word_linear_search(
-    const DictionaryWordList *dictionary_word_list, const DictionaryWord *word) {
+    const DictionaryWordList *dictionary_word_list,
+    const DictionaryWord *word) {
   for (int i = 0; i < dictionary_word_list->count; i++) {
-    if (dictionary_word_compare(&dictionary_word_list->dictionary_words[i], word) == 0) {
+    if (dictionary_word_compare(&dictionary_word_list->dictionary_words[i],
+                                word) == 0) {
       return true;
     }
   }
