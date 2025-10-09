@@ -2,6 +2,7 @@
 
 #include "../def/move_defs.h"
 #include "../util/io_util.h"
+#include "dictionary_word.h"
 #include "equity.h"
 #include "klv.h"
 #include "kwg.h"
