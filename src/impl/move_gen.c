@@ -856,7 +856,6 @@ void exhaustive_gen_recursive(MoveGen *gen, const Anchor *anchor, int start_col,
 
   printf("DEBUG_REC: pos=%d word_length=%d board_col=%d\n", pos, word_length,
          board_col);
-  fflush(stdout);
 
   // Base case: we've filled the word
   if (pos >= word_length) {
@@ -878,7 +877,6 @@ void exhaustive_gen_recursive(MoveGen *gen, const Anchor *anchor, int start_col,
       printf("%d ", candidate.word[i]);
     }
     printf(" use_binary=%d\n", use_binary_search);
-    fflush(stdout);
 
     // Check if this word is in the dictionary
     bool word_found = use_binary_search
@@ -888,11 +886,9 @@ void exhaustive_gen_recursive(MoveGen *gen, const Anchor *anchor, int start_col,
                                 word_list, &candidate);
 
     printf("DEBUG: word_found=%d\n", word_found);
-    fflush(stdout);
 
     if (word_found) {
       printf("DEBUG: FOUND VALID WORD!\n");
-      fflush(stdout);
 
       // Count actual tiles played (not playthroughs)
       int tiles_played = 0;
@@ -926,7 +922,6 @@ void exhaustive_gen_recursive(MoveGen *gen, const Anchor *anchor, int start_col,
     MachineLetter existing_letter = gen_cache_get_letter(gen, board_col);
     printf("DEBUG_REC: board_col=%d has letter %d, playing through\n",
            board_col, existing_letter);
-    fflush(stdout);
     gen->playthrough_marked[pos] = PLAYED_THROUGH_MARKER;
     exhaustive_gen_recursive(gen, anchor, start_col, pos + 1, remaining_rack,
                              word_length, word_list, use_binary_search);
@@ -937,7 +932,6 @@ void exhaustive_gen_recursive(MoveGen *gen, const Anchor *anchor, int start_col,
   const uint64_t cross_set = gen_cache_get_cross_set(gen, board_col);
   printf("DEBUG_REC: board_col=%d is empty, cross_set=%llx\n", board_col,
          (unsigned long long)cross_set);
-  fflush(stdout);
 
   // Try each tile from the remaining rack
   const int ld_size = ld_get_size(&gen->ld);
@@ -985,7 +979,6 @@ void exhaustive_gen(MoveGen *gen, const Anchor *anchor) {
 
   printf("DEBUG: exhaustive_gen called, row=%u col=%u dir=%u last_anchor=%u\n",
          anchor->row, anchor->col, anchor->dir, anchor->last_anchor_col);
-  fflush(stdout);
 
   // Prefer sorted words (binary search) over unsorted (linear search)
   const DictionaryWordList *word_list = gen->sorted_words;
@@ -998,14 +991,12 @@ void exhaustive_gen(MoveGen *gen, const Anchor *anchor) {
 
   if (!word_list) {
     printf("DEBUG: word_list is NULL!\n");
-    fflush(stdout);
     return; // Should not happen if called correctly
   }
   printf("DEBUG: word_list has %d words, use_binary_search=%d, "
          "max_tiles_to_play=%d\n",
          dictionary_word_list_get_count(word_list), use_binary_search,
          gen->max_tiles_to_play);
-  fflush(stdout);
 
   // Use last_anchor_col for duplicate prevention (like recursive_gen does)
   // We can start a word anywhere from after the last anchor up to the current
@@ -1018,7 +1009,6 @@ void exhaustive_gen(MoveGen *gen, const Anchor *anchor) {
   // Try all possible starting positions
   printf("DEBUG: Starting position loop from %d to %d\n", leftmost_start_col,
          rightmost_start_col);
-  fflush(stdout);
   for (int start_col = leftmost_start_col; start_col <= rightmost_start_col;
        start_col++) {
 
@@ -1026,7 +1016,6 @@ void exhaustive_gen(MoveGen *gen, const Anchor *anchor) {
     // Note: Don't pre-filter by tiles_needed - exhaustive_gen_recursive handles
     // playthroughs correctly
     printf("DEBUG: Entering word_length loop for start_col=%d\n", start_col);
-    fflush(stdout);
     for (int word_length = 1; word_length <= BOARD_DIM - start_col;
          word_length++) {
       if (start_col + word_length > BOARD_DIM) {
@@ -1044,7 +1033,6 @@ void exhaustive_gen(MoveGen *gen, const Anchor *anchor) {
 
       printf("DEBUG: Trying word_length=%d start_col=%d\n", word_length,
              start_col);
-      fflush(stdout);
 
       // Try to generate words of this length starting at start_col
       // The recursive function will handle playthroughs and check tiles_needed
@@ -1054,7 +1042,6 @@ void exhaustive_gen(MoveGen *gen, const Anchor *anchor) {
     }
   }
   printf("DEBUG: exhaustive_gen done\n");
-  fflush(stdout);
 }
 
 void wordmap_gen(MoveGen *gen, const Anchor *anchor) {
@@ -2138,7 +2125,6 @@ void shadow_play_for_anchor(MoveGen *gen, int col) {
     printf("DEBUG: Adding anchor to heap: dir=%d row=%d col=%d "
            "last_anchor_col=%d\n",
            gen->dir, gen->current_row_index, col, gen->last_anchor_col);
-    fflush(stdout);
     anchor_heap_add_unheaped_anchor(
         &gen->anchor_heap, gen->current_row_index, col, gen->last_anchor_col,
         gen->dir, gen->highest_shadow_equity, gen->highest_shadow_score);

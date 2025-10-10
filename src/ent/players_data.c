@@ -198,8 +198,6 @@ void players_data_destroy_data(PlayersData *players_data,
       wmp_destroy(players_data->data[data_index]);
       break;
     case PLAYERS_DATA_TYPE_UNSORTED_WORDS:
-      dictionary_word_list_destroy(players_data->data[data_index]);
-      break;
     case PLAYERS_DATA_TYPE_SORTED_WORDS:
       dictionary_word_list_destroy(players_data->data[data_index]);
       break;
@@ -245,11 +243,8 @@ const char *players_data_get_data_name(const PlayersData *players_data,
       data_name = wmp_get_name(players_data->data[data_index]);
       break;
     case PLAYERS_DATA_TYPE_UNSORTED_WORDS:
-      // UNSORTED_WORDS doesn't have a name - it's derived from KWG
-      data_name = NULL;
-      break;
     case PLAYERS_DATA_TYPE_SORTED_WORDS:
-      // SORTED_WORDS doesn't have a name - it's derived from KWG
+      // Word lists don't have names - they're derived from KWG
       data_name = NULL;
       break;
     case NUMBER_OF_DATA:
