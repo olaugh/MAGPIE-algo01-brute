@@ -67,6 +67,11 @@ void dictionary_word_list_write_to_file(
 bool dictionary_word_list_contains_word_linear_search(
     const DictionaryWordList *dictionary_word_list, const DictionaryWord *word);
 
+bool dictionary_word_list_contains_word_binary_search(
+    const DictionaryWordList *dictionary_word_list, const DictionaryWord *word);
+
+bool dictionary_word_list_is_sorted(const DictionaryWordList *dictionary_word_list);
+
 static inline void
 dictionary_word_list_shuffle(const DictionaryWordList *word_list,
                              uint64_t seed) {

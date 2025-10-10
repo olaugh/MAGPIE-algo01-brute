@@ -10,6 +10,7 @@
 #include "board_layout_default_test.h"
 #include "board_layout_super_test.h"
 #include "board_test.h"
+#include "binary_dictionary_test.h"
 #include "brute_dictionary_test.h"
 #include "cgp_test.h"
 #include "checkpoint_test.h"
@@ -115,6 +116,7 @@ static TestEntry test_table[] = {
     {"zobrist", test_zobrist},
     {"tt", test_transposition_table},
     {"load", test_load_gcg},
+    {"binarydict", word_lookup_binary_search},
     {"brutedict", word_lookup_linear_search},
     {NULL, NULL} // Sentinel value to mark end of array
 };

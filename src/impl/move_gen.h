@@ -2,6 +2,7 @@
 #define MOVE_GEN_H
 
 #include "../def/move_defs.h"
+#include "../ent/dictionary_word.h"
 #include "../ent/game.h"
 #include "../ent/move.h"
 #include "../impl/wmp_move_gen.h"
@@ -119,6 +120,8 @@ typedef struct MoveGen {
   const Board *board;
   const KLV *klv;
   const KWG *kwg;
+  const DictionaryWordList *unsorted_words;
+  const DictionaryWordList *sorted_words;
   MoveList *move_list;
 
   WMPMoveGen wmp_move_gen;

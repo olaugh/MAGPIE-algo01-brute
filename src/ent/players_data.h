@@ -29,6 +29,9 @@ WMP *players_data_get_wmp(const PlayersData *players_data, int player_index);
 DictionaryWordList *
 players_data_get_unsorted_words(const PlayersData *players_data,
                                 int player_index);
+DictionaryWordList *
+players_data_get_sorted_words(const PlayersData *players_data,
+                              int player_index);
 
 void players_data_set_name(PlayersData *players_data, int player_index,
                            const char *player_name);

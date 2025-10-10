@@ -191,6 +191,39 @@ bool dictionary_word_list_contains_word_linear_search(
   return false;
 }
 
+bool dictionary_word_list_contains_word_binary_search(
+    const DictionaryWordList *dictionary_word_list,
+    const DictionaryWord *word) {
+  int left = 0;
+  int right = dictionary_word_list->count - 1;
+
+  while (left <= right) {
+    int mid = left + (right - left) / 2;
+    int cmp =
+        dictionary_word_compare(&dictionary_word_list->dictionary_words[mid],
+                                word);
+
+    if (cmp == 0) {
+      return true;
+    } else if (cmp < 0) {
+      left = mid + 1;
+    } else {
+      right = mid - 1;
+    }
+  }
+  return false;
+}
+
+bool dictionary_word_list_is_sorted(const DictionaryWordList *dictionary_word_list) {
+  for (int i = 1; i < dictionary_word_list->count; i++) {
+    if (dictionary_word_compare(&dictionary_word_list->dictionary_words[i - 1],
+                                &dictionary_word_list->dictionary_words[i]) > 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
 void dictionary_word_list_write_to_file(
     const DictionaryWordList *dictionary_word_list,
     const LetterDistribution *ld, const char *data_paths,

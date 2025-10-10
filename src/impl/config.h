@@ -52,6 +52,8 @@ bool config_get_use_small_plays(const Config *config);
 bool config_get_human_readable(const Config *config);
 bool config_get_load_unsorted_words(const Config *config);
 void config_set_load_unsorted_words(Config *config, bool load_unsorted_words);
+bool config_get_load_sorted_words(const Config *config);
+void config_set_load_sorted_words(Config *config, bool load_sorted_words);
 double config_get_tt_fraction_of_mem(const Config *config);
 PlayersData *config_get_players_data(const Config *config);
 LetterDistribution *config_get_ld(const Config *config);
