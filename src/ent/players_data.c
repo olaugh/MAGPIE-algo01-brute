@@ -168,7 +168,8 @@ void *players_data_create_data(players_data_t players_data_type,
     DictionaryWordList *word_list = dictionary_word_list_create();
     kwg_write_words(kwg, kwg_get_dawg_root_node_index(kwg), word_list, NULL);
     kwg_destroy(kwg);
-    // Sort the word list (kwg_write_words should output sorted, but be explicit)
+    // Sort the word list (kwg_write_words should output sorted, but be
+    // explicit)
     dictionary_word_list_sort(word_list);
     data = word_list;
     break;
