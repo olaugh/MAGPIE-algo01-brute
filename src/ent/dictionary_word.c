@@ -199,13 +199,13 @@ bool dictionary_word_list_contains_word_binary_search(
 
   while (left <= right) {
     int mid = left + (right - left) / 2;
-    int cmp =
-        dictionary_word_compare(&dictionary_word_list->dictionary_words[mid],
-                                word);
+    int cmp = dictionary_word_compare(
+        &dictionary_word_list->dictionary_words[mid], word);
 
     if (cmp == 0) {
       return true;
-    } else if (cmp < 0) {
+    }
+    if (cmp < 0) {
       left = mid + 1;
     } else {
       right = mid - 1;
@@ -214,10 +214,12 @@ bool dictionary_word_list_contains_word_binary_search(
   return false;
 }
 
-bool dictionary_word_list_is_sorted(const DictionaryWordList *dictionary_word_list) {
+bool dictionary_word_list_is_sorted(
+    const DictionaryWordList *dictionary_word_list) {
   for (int i = 1; i < dictionary_word_list->count; i++) {
     if (dictionary_word_compare(&dictionary_word_list->dictionary_words[i - 1],
-                                &dictionary_word_list->dictionary_words[i]) > 0) {
+                                &dictionary_word_list->dictionary_words[i]) >
+        0) {
       return false;
     }
   }

@@ -205,6 +205,17 @@ python3 format.py     # Check clang-format (requires clang-format-20)
 python3 find_circ_deps.py  # Check for circular dependencies
 ```
 
+### Code Formatting
+
+**Important**: Before pushing to remote, format all code with clang-format-20:
+
+```bash
+python3 format.py     # Check formatting issues
+clang-format-20 -i <file>  # Format specific file in-place
+```
+
+The project uses clang-format-20 for consistent code style. All code must be formatted before pushing to pass CI checks.
+
 ### CI Pipeline
 
 GitHub Actions runs:

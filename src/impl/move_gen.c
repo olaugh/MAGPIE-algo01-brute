@@ -656,24 +656,24 @@ bool wordmap_gen_check_playthrough_and_crosses(MoveGen *gen, int word_idx,
 static inline bool play_is_nonempty_and_nonduplicate(int tiles_played,
                                                      bool is_unique);
 
-void naive_go_on(MoveGen *gen, int current_col, MachineLetter L,
-                 int leftstrip, int rightstrip, bool unique_play,
-                 int main_word_score, int word_multiplier, int cross_score,
+void naive_go_on(MoveGen *gen, int current_col, MachineLetter L, int leftstrip,
+                 int rightstrip, bool unique_play, int main_word_score,
+                 int word_multiplier, int cross_score,
                  const DictionaryWordList *word_list, bool use_binary_search);
 
-// Naive recursive generation - like recursive_gen but places tiles indiscriminately
-// and validates against sorted/unsorted word list instead of using KWG
+// Naive recursive generation - like recursive_gen but places tiles
+// indiscriminately and validates against sorted/unsorted word list instead of
+// using KWG
 void naive_recursive_gen(MoveGen *gen, int col, int leftstrip, int rightstrip,
-                        bool unique_play, int main_word_score,
-                        int word_multiplier, int cross_score,
-                        const DictionaryWordList *word_list,
-                        bool use_binary_search) {
+                         bool unique_play, int main_word_score,
+                         int word_multiplier, int cross_score,
+                         const DictionaryWordList *word_list,
+                         bool use_binary_search) {
 
   const MachineLetter current_letter = gen_cache_get_letter(gen, col);
   // Like recursive_gen_alpha (wordsmog), we don't use left_extension_set
   // since we're placing tiles indiscriminately without KWG pruning
   uint64_t possible_letters_here = gen_cache_get_cross_set(gen, col);
-
 
   if (possible_letters_here == 1) {
     possible_letters_here = 0;
@@ -682,8 +682,8 @@ void naive_recursive_gen(MoveGen *gen, int col, int leftstrip, int rightstrip,
   if (current_letter != ALPHABET_EMPTY_SQUARE_MARKER) {
     // Play through existing letter
     naive_go_on(gen, col, current_letter, leftstrip, rightstrip, unique_play,
-               main_word_score, word_multiplier, cross_score, word_list,
-               use_binary_search);
+                main_word_score, word_multiplier, cross_score, word_list,
+                use_binary_search);
   } else if (!rack_is_empty(&gen->player_rack) &&
              ((possible_letters_here & gen->rack_cross_set) != 0)) {
     // Try placing each letter from our rack (no KWG filtering)
@@ -699,8 +699,8 @@ void naive_recursive_gen(MoveGen *gen, int col, int leftstrip, int rightstrip,
                                                          &gen->player_rack, ml);
           gen->tiles_played++;
           naive_go_on(gen, col, ml, leftstrip, rightstrip, unique_play,
-                     main_word_score, word_multiplier, cross_score, word_list,
-                     use_binary_search);
+                      main_word_score, word_multiplier, cross_score, word_list,
+                      use_binary_search);
           gen->tiles_played--;
           leave_map_add_letter_and_update_current_index(&gen->leave_map,
                                                         &gen->player_rack, ml);
@@ -711,8 +711,8 @@ void naive_recursive_gen(MoveGen *gen, int col, int leftstrip, int rightstrip,
               &gen->leave_map, &gen->player_rack, BLANK_MACHINE_LETTER);
           gen->tiles_played++;
           naive_go_on(gen, col, get_blanked_machine_letter(ml), leftstrip,
-                     rightstrip, unique_play, main_word_score, word_multiplier,
-                     cross_score, word_list, use_binary_search);
+                      rightstrip, unique_play, main_word_score, word_multiplier,
+                      cross_score, word_list, use_binary_search);
           gen->tiles_played--;
           leave_map_add_letter_and_update_current_index(
               &gen->leave_map, &gen->player_rack, BLANK_MACHINE_LETTER);
@@ -738,14 +738,12 @@ static inline bool naive_check_word_and_record(
     candidate.word[candidate.length++] = get_unblanked_machine_letter(ml);
   }
 
-
   // Check if word is in dictionary
   bool word_found = use_binary_search
                         ? dictionary_word_list_contains_word_binary_search(
                               word_list, &candidate)
                         : dictionary_word_list_contains_word_linear_search(
                               word_list, &candidate);
-
 
   if (word_found) {
     record_tile_placement_move(gen, leftstrip, rightstrip, main_word_score,
@@ -756,9 +754,9 @@ static inline bool naive_check_word_and_record(
 }
 
 // naive_go_on - like go_on but checks dictionary instead of KWG accepts bit
-void naive_go_on(MoveGen *gen, int current_col, MachineLetter L,
-                 int leftstrip, int rightstrip, bool unique_play,
-                 int main_word_score, int word_multiplier, int cross_score,
+void naive_go_on(MoveGen *gen, int current_col, MachineLetter L, int leftstrip,
+                 int rightstrip, bool unique_play, int main_word_score,
+                 int word_multiplier, int cross_score,
                  const DictionaryWordList *word_list, bool use_binary_search) {
   // Handle incremental scoring
   const BonusSquare bonus_square = gen_cache_get_bonus_square(gen, current_col);
@@ -801,25 +799,26 @@ void naive_go_on(MoveGen *gen, int current_col, MachineLetter L,
     // Check dictionary instead of KWG accepts
     if (no_letter_directly_left &&
         play_is_nonempty_and_nonduplicate(gen->tiles_played, unique_play)) {
-      naive_check_word_and_record(gen, leftstrip, rightstrip, inc_main_word_score,
-                                  inc_word_multiplier, inc_cross_scores,
-                                  word_list, use_binary_search);
+      naive_check_word_and_record(
+          gen, leftstrip, rightstrip, inc_main_word_score, inc_word_multiplier,
+          inc_cross_scores, word_list, use_binary_search);
     }
 
     // Continue left
     if (current_col > 0 && current_col - 1 != gen->last_anchor_col) {
       naive_recursive_gen(gen, current_col - 1, leftstrip, rightstrip,
-                         unique_play, inc_main_word_score, inc_word_multiplier,
-                         inc_cross_scores, word_list, use_binary_search);
+                          unique_play, inc_main_word_score, inc_word_multiplier,
+                          inc_cross_scores, word_list, use_binary_search);
     }
 
     // Continue right through anchor
-    // For naive generation, always allow continuing (don't check anchor_right_extension_set)
+    // For naive generation, always allow continuing (don't check
+    // anchor_right_extension_set)
     if (no_letter_directly_left && gen->current_anchor_col < BOARD_DIM - 1) {
       naive_recursive_gen(gen, gen->current_anchor_col + 1, leftstrip,
-                         rightstrip, unique_play, inc_main_word_score,
-                         inc_word_multiplier, inc_cross_scores, word_list,
-                         use_binary_search);
+                          rightstrip, unique_play, inc_main_word_score,
+                          inc_word_multiplier, inc_cross_scores, word_list,
+                          use_binary_search);
     }
   } else {
     if (square_is_empty && !unique_play && gen->dir &&
@@ -833,16 +832,16 @@ void naive_go_on(MoveGen *gen, int current_col, MachineLetter L,
     // Check dictionary instead of KWG accepts
     if (no_letter_directly_right &&
         play_is_nonempty_and_nonduplicate(gen->tiles_played, unique_play)) {
-      naive_check_word_and_record(gen, leftstrip, rightstrip, inc_main_word_score,
-                                  inc_word_multiplier, inc_cross_scores,
-                                  word_list, use_binary_search);
+      naive_check_word_and_record(
+          gen, leftstrip, rightstrip, inc_main_word_score, inc_word_multiplier,
+          inc_cross_scores, word_list, use_binary_search);
     }
 
     // Continue right
     if (current_col < BOARD_DIM - 1) {
       naive_recursive_gen(gen, current_col + 1, leftstrip, rightstrip,
-                         unique_play, inc_main_word_score, inc_word_multiplier,
-                         inc_cross_scores, word_list, use_binary_search);
+                          unique_play, inc_main_word_score, inc_word_multiplier,
+                          inc_cross_scores, word_list, use_binary_search);
     }
   }
 }
@@ -855,7 +854,8 @@ void exhaustive_gen_recursive(MoveGen *gen, const Anchor *anchor, int start_col,
                               bool use_binary_search) {
   const int board_col = start_col + pos;
 
-  printf("DEBUG_REC: pos=%d word_length=%d board_col=%d\n", pos, word_length, board_col);
+  printf("DEBUG_REC: pos=%d word_length=%d board_col=%d\n", pos, word_length,
+         board_col);
   fflush(stdout);
 
   // Base case: we've filled the word
@@ -924,7 +924,8 @@ void exhaustive_gen_recursive(MoveGen *gen, const Anchor *anchor, int start_col,
   // If there's a letter on the board, we must play through it
   if (!gen_cache_is_empty(gen, board_col)) {
     MachineLetter existing_letter = gen_cache_get_letter(gen, board_col);
-    printf("DEBUG_REC: board_col=%d has letter %d, playing through\n", board_col, existing_letter);
+    printf("DEBUG_REC: board_col=%d has letter %d, playing through\n",
+           board_col, existing_letter);
     fflush(stdout);
     gen->playthrough_marked[pos] = PLAYED_THROUGH_MARKER;
     exhaustive_gen_recursive(gen, anchor, start_col, pos + 1, remaining_rack,
@@ -934,7 +935,8 @@ void exhaustive_gen_recursive(MoveGen *gen, const Anchor *anchor, int start_col,
 
   // Get cross set for this position
   const uint64_t cross_set = gen_cache_get_cross_set(gen, board_col);
-  printf("DEBUG_REC: board_col=%d is empty, cross_set=%llx\n", board_col, (unsigned long long)cross_set);
+  printf("DEBUG_REC: board_col=%d is empty, cross_set=%llx\n", board_col,
+         (unsigned long long)cross_set);
   fflush(stdout);
 
   // Try each tile from the remaining rack
@@ -981,7 +983,7 @@ void exhaustive_gen(MoveGen *gen, const Anchor *anchor) {
   // Use shadow data from gen (set during shadow playing)
   // max_tiles_to_play is already set by shadow_start()
 
-  printf("DEBUG: exhaustive_gen called, row=%d col=%d dir=%d last_anchor=%d\n",
+  printf("DEBUG: exhaustive_gen called, row=%u col=%u dir=%u last_anchor=%u\n",
          anchor->row, anchor->col, anchor->dir, anchor->last_anchor_col);
   fflush(stdout);
 
@@ -999,23 +1001,30 @@ void exhaustive_gen(MoveGen *gen, const Anchor *anchor) {
     fflush(stdout);
     return; // Should not happen if called correctly
   }
-  printf("DEBUG: word_list has %d words, use_binary_search=%d, max_tiles_to_play=%d\n",
-         dictionary_word_list_get_count(word_list), use_binary_search, gen->max_tiles_to_play);
+  printf("DEBUG: word_list has %d words, use_binary_search=%d, "
+         "max_tiles_to_play=%d\n",
+         dictionary_word_list_get_count(word_list), use_binary_search,
+         gen->max_tiles_to_play);
   fflush(stdout);
 
   // Use last_anchor_col for duplicate prevention (like recursive_gen does)
-  // We can start a word anywhere from after the last anchor up to the current anchor
-  int leftmost_start_col = (anchor->last_anchor_col == BOARD_DIM) ? 0 : (anchor->last_anchor_col + 1);
+  // We can start a word anywhere from after the last anchor up to the current
+  // anchor
+  int leftmost_start_col = (anchor->last_anchor_col == BOARD_DIM)
+                               ? 0
+                               : (anchor->last_anchor_col + 1);
   int rightmost_start_col = anchor->col;
 
   // Try all possible starting positions
-  printf("DEBUG: Starting position loop from %d to %d\n",
-         leftmost_start_col, rightmost_start_col);
+  printf("DEBUG: Starting position loop from %d to %d\n", leftmost_start_col,
+         rightmost_start_col);
   fflush(stdout);
-  for (int start_col = leftmost_start_col; start_col <= rightmost_start_col; start_col++) {
+  for (int start_col = leftmost_start_col; start_col <= rightmost_start_col;
+       start_col++) {
 
     // Try different word lengths from start_col
-    // Note: Don't pre-filter by tiles_needed - exhaustive_gen_recursive handles playthroughs correctly
+    // Note: Don't pre-filter by tiles_needed - exhaustive_gen_recursive handles
+    // playthroughs correctly
     printf("DEBUG: Entering word_length loop for start_col=%d\n", start_col);
     fflush(stdout);
     for (int word_length = 1; word_length <= BOARD_DIM - start_col;
@@ -1033,12 +1042,13 @@ void exhaustive_gen(MoveGen *gen, const Anchor *anchor) {
       Rack remaining_rack;
       rack_copy(&remaining_rack, &gen->player_rack);
 
-      printf("DEBUG: Trying word_length=%d start_col=%d\n",
-             word_length, start_col);
+      printf("DEBUG: Trying word_length=%d start_col=%d\n", word_length,
+             start_col);
       fflush(stdout);
 
       // Try to generate words of this length starting at start_col
-      // The recursive function will handle playthroughs and check tiles_needed correctly
+      // The recursive function will handle playthroughs and check tiles_needed
+      // correctly
       exhaustive_gen_recursive(gen, anchor, start_col, 0, &remaining_rack,
                                word_length, word_list, use_binary_search);
     }
@@ -1510,7 +1520,8 @@ static inline void shadow_record(MoveGen *gen) {
     gen->highest_shadow_score = score;
   }
   if (gen->tiles_played > gen->max_tiles_to_play) {
-    // printf("DEBUG shadow_record: tiles_played=%d, updating max_tiles_to_play\n",
+    // printf("DEBUG shadow_record: tiles_played=%d, updating
+    // max_tiles_to_play\n",
     //        gen->tiles_played);
     // fflush(stdout);
     gen->max_tiles_to_play = gen->tiles_played;
@@ -2121,9 +2132,11 @@ void shadow_play_for_anchor(MoveGen *gen, int col) {
     wmp_move_gen_add_anchors(&gen->wmp_move_gen, gen->current_row_index, col,
                              gen->last_anchor_col, gen->dir, &gen->anchor_heap);
   } else {
-    // For both KWG and linear word lists, use regular anchors with last_anchor_col
-    // This allows proper duplicate prevention like recursive_gen does
-    printf("DEBUG: Adding anchor to heap: dir=%d row=%d col=%d last_anchor_col=%d\n",
+    // For both KWG and linear word lists, use regular anchors with
+    // last_anchor_col This allows proper duplicate prevention like
+    // recursive_gen does
+    printf("DEBUG: Adding anchor to heap: dir=%d row=%d col=%d "
+           "last_anchor_col=%d\n",
            gen->dir, gen->current_row_index, col, gen->last_anchor_col);
     fflush(stdout);
     anchor_heap_add_unheaped_anchor(
@@ -2133,15 +2146,17 @@ void shadow_play_for_anchor(MoveGen *gen, int col) {
 }
 
 void shadow_by_orientation(MoveGen *gen) {
-  // For naive generation with word lists (but NOT WMP), skip shadow playing entirely
-  // Just add all anchors directly to the heap
-  // WMP takes precedence and requires shadow playing with KWG
+  // For naive generation with word lists (but NOT WMP), skip shadow playing
+  // entirely Just add all anchors directly to the heap WMP takes precedence and
+  // requires shadow playing with KWG
   const bool has_wmp = wmp_move_gen_is_active(&gen->wmp_move_gen);
-  const bool using_word_lists_only = !has_wmp && (gen->sorted_words || gen->unsorted_words);
+  const bool using_word_lists_only =
+      !has_wmp && (gen->sorted_words || gen->unsorted_words);
 
   for (int row = 0; row < BOARD_DIM; row++) {
     gen->current_row_index = row;
-    int num_anchors = gen->row_number_of_anchors_cache[BOARD_DIM * gen->dir + row];
+    int num_anchors =
+        gen->row_number_of_anchors_cache[BOARD_DIM * gen->dir + row];
     if (num_anchors == 0) {
       continue;
     }
@@ -2154,8 +2169,8 @@ void shadow_by_orientation(MoveGen *gen) {
           // Naive generation: add anchor without shadow playing
           // Move generation will happen in gen_record_scoring_plays
           anchor_heap_add_unheaped_anchor(&gen->anchor_heap, row, col,
-                                         gen->last_anchor_col, gen->dir,
-                                         EQUITY_MAX_VALUE, EQUITY_MAX_VALUE);
+                                          gen->last_anchor_col, gen->dir,
+                                          EQUITY_MAX_VALUE, EQUITY_MAX_VALUE);
         } else {
           // KWG/WMP generation: use shadow playing
           shadow_play_for_anchor(gen, col);
@@ -2245,7 +2260,7 @@ void gen_load_position(MoveGen *gen, const MoveGenArgs *args) {
   for (int i = 0; i < ld_get_size(&gen->ld); i++) {
     int count = rack_get_letter(&gen->player_rack, i);
     if (count > 0) {
-      if (i == 0) {  // A
+      if (i == 0) { // A
         // printf("DEBUG: Rack has %d of letter %d (A)\n", count, i);
         // fflush(stdout);
       }
@@ -2370,7 +2385,8 @@ void gen_record_scoring_plays(MoveGen *gen) {
       // printf("DEBUG: Using wordmap_gen\n");
       wordmap_gen(gen, &anchor);
     } else if (gen->sorted_words || gen->unsorted_words) {
-      // Use naive_recursive_gen (places tiles indiscriminately, validates with word list)
+      // Use naive_recursive_gen (places tiles indiscriminately, validates with
+      // word list)
       const DictionaryWordList *word_list = gen->sorted_words;
       bool use_binary_search = true;
       if (!word_list) {
@@ -2378,8 +2394,8 @@ void gen_record_scoring_plays(MoveGen *gen) {
         use_binary_search = false;
       }
       naive_recursive_gen(gen, anchor.col, anchor.col, anchor.col,
-                         gen->dir == BOARD_HORIZONTAL_DIRECTION, 0, 1, 0,
-                         word_list, use_binary_search);
+                          gen->dir == BOARD_HORIZONTAL_DIRECTION, 0, 1, 0,
+                          word_list, use_binary_search);
     } else {
       // printf("DEBUG: Using recursive_gen\n");
       recursive_gen(gen, anchor.col, kwg_root_node_index, anchor.col,

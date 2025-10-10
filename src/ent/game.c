@@ -284,12 +284,15 @@ static inline void game_gen_classic_cross_set_linear(const Game *game, int row,
     return;
   }
 
-  // Prefer sorted words with binary search, fall back to unsorted with linear search
+  // Prefer sorted words with binary search, fall back to unsorted with linear
+  // search
   const Player *player = game_get_player(game, cross_set_index);
   const DictionaryWordList *sorted_word_list = player_get_sorted_words(player);
-  const DictionaryWordList *unsorted_word_list = player_get_unsorted_words(player);
+  const DictionaryWordList *unsorted_word_list =
+      player_get_unsorted_words(player);
   const bool use_binary_search = (sorted_word_list != NULL);
-  const DictionaryWordList *word_list = use_binary_search ? sorted_word_list : unsorted_word_list;
+  const DictionaryWordList *word_list =
+      use_binary_search ? sorted_word_list : unsorted_word_list;
 
   const LetterDistribution *ld = game_get_ld(game);
 
@@ -348,11 +351,11 @@ static inline void game_gen_classic_cross_set_linear(const Game *game, int row,
     // Check if this word exists in the dictionary
     bool word_found;
     if (use_binary_search) {
-      word_found = dictionary_word_list_contains_word_binary_search(word_list,
-                                                                     &candidate_word);
+      word_found = dictionary_word_list_contains_word_binary_search(
+          word_list, &candidate_word);
     } else {
-      word_found = dictionary_word_list_contains_word_linear_search(word_list,
-                                                                     &candidate_word);
+      word_found = dictionary_word_list_contains_word_linear_search(
+          word_list, &candidate_word);
     }
 
     if (word_found) {
@@ -405,15 +408,18 @@ static inline void game_gen_classic_cross_set(const Game *game, int row,
   const Player *player = game_get_player(game, cross_set_index);
 
   // WMP takes precedence over word lists for cross-set generation
-  // If player has WMP, use KWG-based cross-sets (fall through to KWG code below)
+  // If player has WMP, use KWG-based cross-sets (fall through to KWG code
+  // below)
   const WMP *wmp = player_get_wmp(player);
   const bool has_wmp = (wmp != NULL);
 
   // Use linear/binary search version if sorted or unsorted words are loaded
   // BUT only if WMP is not active (WMP needs KWG cross-sets)
   if (!has_wmp) {
-    const DictionaryWordList *sorted_word_list = player_get_sorted_words(player);
-    const DictionaryWordList *unsorted_word_list = player_get_unsorted_words(player);
+    const DictionaryWordList *sorted_word_list =
+        player_get_sorted_words(player);
+    const DictionaryWordList *unsorted_word_list =
+        player_get_unsorted_words(player);
 
     if (sorted_word_list || unsorted_word_list) {
       game_gen_classic_cross_set_linear(game, row, col, dir, cross_set_index);
