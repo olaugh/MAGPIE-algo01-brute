@@ -21,3 +21,4 @@ cppcheck_*
 TODO
 *.DS_Store
 ._*
+original-*.txt
