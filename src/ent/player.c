@@ -47,11 +47,6 @@ void player_update(const PlayersData *players_data, Player *player) {
       players_data_get_unsorted_words(players_data, player->index);
   player->sorted_words =
       players_data_get_sorted_words(players_data, player->index);
-  // printf("DEBUG player_update: player %d unsorted_words=%p
-  // sorted_words=%p\n",
-  //        player->index, (void *)player->unsorted_words,
-  //        (void *)player->sorted_words);
-  // fflush(stdout);
 }
 
 Player *player_create(const PlayersData *players_data,

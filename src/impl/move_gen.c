@@ -1474,10 +1474,6 @@ static inline void shadow_record(MoveGen *gen) {
     gen->highest_shadow_score = score;
   }
   if (gen->tiles_played > gen->max_tiles_to_play) {
-    // printf("DEBUG shadow_record: tiles_played=%d, updating
-    // max_tiles_to_play\n",
-    //        gen->tiles_played);
-    // fflush(stdout);
     gen->max_tiles_to_play = gen->tiles_played;
   }
 }
@@ -1978,27 +1974,17 @@ static inline void shadow_start_playthrough(MoveGen *gen,
 static inline void shadow_start(MoveGen *gen) {
   const uint64_t any_extension_set =
       gen->anchor_left_extension_set | gen->anchor_right_extension_set;
-  // printf("DEBUG shadow_start: any_extension_set=%llx\n",
-  //        (unsigned long long)any_extension_set);
-  // fflush(stdout);
   if (any_extension_set == 0) {
-    // printf("DEBUG: any_extension_set is 0, returning\n");
-    // fflush(stdout);
     return;
   }
 
   const uint64_t original_rack_cross_set = gen->rack_cross_set;
-  // printf("DEBUG shadow_start: rack_cross_set=%llx\n",
-  //        (unsigned long long)gen->rack_cross_set);
-  // fflush(stdout);
   rack_copy(&gen->full_player_rack, &gen->player_rack);
   rack_copy(&gen->bingo_alpha_rack, &gen->player_rack);
 
   const MachineLetter current_letter =
       gen_cache_get_letter(gen, gen->current_left_col);
   if (current_letter == ALPHABET_EMPTY_SQUARE_MARKER) {
-    // printf("DEBUG: Calling shadow_start_nonplaythrough\n");
-    // fflush(stdout);
     shadow_start_nonplaythrough(gen);
   } else {
     shadow_start_playthrough(gen, current_letter);
@@ -2036,11 +2022,6 @@ void shadow_play_for_anchor(MoveGen *gen, int col) {
   // Set leftx/rightx
   gen->anchor_left_extension_set = gen_cache_get_left_extension_set(gen, col);
   gen->anchor_right_extension_set = gen_cache_get_right_extension_set(gen, col);
-  // printf("DEBUG: leftx=%llx rightx=%llx\n",
-  //        (unsigned long long)gen->anchor_left_extension_set,
-  //        (unsigned long long)gen->anchor_right_extension_set);
-  // fflush(stdout);
-
   // Reset unrestricted multipliers
   gen->num_unrestricted_multipliers = 0;
   memset(gen->descending_effective_letter_multipliers, 0,
@@ -2071,17 +2052,10 @@ void shadow_play_for_anchor(MoveGen *gen, int col) {
   wmp_move_gen_reset_anchors(&gen->wmp_move_gen);
 
   shadow_start(gen);
-  // printf("DEBUG shadow_play_for_anchor: col=%d max_tiles_to_play=%d\n", col,
-  //        gen->max_tiles_to_play);
-  // fflush(stdout);
   if (gen->max_tiles_to_play == 0) {
-    // printf("DEBUG: max_tiles_to_play is 0, returning early\n");
-    // fflush(stdout);
     return;
   }
 
-  // printf("DEBUG: Adding anchor to heap\n");
-  // fflush(stdout);
   if (wmp_move_gen_is_active(&gen->wmp_move_gen)) {
     wmp_move_gen_add_anchors(&gen->wmp_move_gen, gen->current_row_index, col,
                              gen->last_anchor_col, gen->dir, &gen->anchor_heap);
@@ -2172,9 +2146,6 @@ void gen_load_position(MoveGen *gen, const MoveGenArgs *args) {
   gen->klv = player_get_klv(player);
   gen->unsorted_words = player_get_unsorted_words(player);
   gen->sorted_words = player_get_sorted_words(player);
-  // printf("DEBUG gen_load_position: unsorted_words=%p sorted_words=%p\n",
-  //        (void *)gen->unsorted_words, (void *)gen->sorted_words);
-  // fflush(stdout);
   gen->board_number_of_tiles_played = board_get_tiles_played(gen->board);
   rack_copy(&gen->opponent_rack, player_get_rack(opponent));
   rack_copy(&gen->player_rack, player_get_rack(player));
@@ -2210,10 +2181,6 @@ void gen_load_position(MoveGen *gen, const MoveGenArgs *args) {
   for (int i = 0; i < ld_get_size(&gen->ld); i++) {
     int count = rack_get_letter(&gen->player_rack, i);
     if (count > 0) {
-      if (i == 0) { // A
-        // printf("DEBUG: Rack has %d of letter %d (A)\n", count, i);
-        // fflush(stdout);
-      }
       gen->rack_cross_set = gen->rack_cross_set | ((uint64_t)1 << i);
     }
     gen->tile_scores[i] = ld_get_score(&gen->ld, i);
@@ -2225,10 +2192,6 @@ void gen_load_position(MoveGen *gen, const MoveGenArgs *args) {
 
   board_load_number_of_row_anchors_cache(gen->board,
                                          gen->row_number_of_anchors_cache);
-  // printf("DEBUG gen_load_position: anchor cache for row 7 dir0=%d dir1=%d\n",
-  //        gen->row_number_of_anchors_cache[BOARD_DIM * 0 + 7],
-  //        gen->row_number_of_anchors_cache[BOARD_DIM * 1 + 7]);
-  // fflush(stdout);
   board_load_lanes_cache(gen->board, gen->cross_index, gen->lanes_cache);
 
   board_copy_opening_penalties(gen->board, gen->opening_move_penalties);
@@ -2300,9 +2263,6 @@ void gen_record_scoring_plays(MoveGen *gen) {
   if (gen->is_wordsmog) {
     rack_reset(&gen->full_player_rack);
   }
-  // printf("DEBUG gen_record_scoring_plays: anchor_heap.count=%d\n",
-  //        gen->anchor_heap.count);
-  // fflush(stdout);
   while (gen->anchor_heap.count > 0) {
     const Anchor anchor = anchor_heap_extract_max(&gen->anchor_heap);
     if (better_play_has_been_found(gen, anchor.highest_possible_equity)) {
@@ -2323,16 +2283,11 @@ void gen_record_scoring_plays(MoveGen *gen) {
     gen->anchor_right_extension_set =
         gen_cache_get_right_extension_set(gen, gen->current_anchor_col);
     gen->current_anchor_highest_possible_score = anchor.highest_possible_score;
-    // printf("DEBUG: is_wordsmog=%d, wmp_active=%d, unsorted_words=%p\n",
-    //        gen->is_wordsmog, wmp_move_gen_is_active(&gen->wmp_move_gen),
-    //        (void *)gen->unsorted_words);
-    // fflush(stdout);
     if (gen->is_wordsmog) {
       recursive_gen_alpha(gen, anchor.col, anchor.col, anchor.col,
                           gen->dir == BOARD_HORIZONTAL_DIRECTION, 0, 1, 0);
     } else if (wmp_move_gen_is_active(&gen->wmp_move_gen)) {
       // WMP takes precedence over luwords/lswords for comparison purposes
-      // printf("DEBUG: Using wordmap_gen\n");
       wordmap_gen(gen, &anchor);
     } else if (gen->sorted_words || gen->unsorted_words) {
       // Use naive_recursive_gen (places tiles indiscriminately, validates with
@@ -2347,7 +2302,6 @@ void gen_record_scoring_plays(MoveGen *gen) {
                           gen->dir == BOARD_HORIZONTAL_DIRECTION, 0, 1, 0,
                           word_list, use_binary_search);
     } else {
-      // printf("DEBUG: Using recursive_gen\n");
       recursive_gen(gen, anchor.col, kwg_root_node_index, anchor.col,
                     anchor.col, gen->dir == BOARD_HORIZONTAL_DIRECTION, 0, 1,
                     0);
