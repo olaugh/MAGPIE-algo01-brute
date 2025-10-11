@@ -363,12 +363,6 @@ static inline void game_gen_classic_cross_set_linear(const Game *game, int row,
     }
   }
 
-  if (row == 7 && col == 7) {
-    // printf("DEBUG %s cross_set result: letter_set=%llx score=%d\n",
-    //        use_binary_search ? "binary" : "linear",
-    //        (unsigned long long)letter_set, equity_to_int(score));
-    // fflush(stdout);
-  }
   board_set_cross_set_with_blank(board, row, col, dir, cross_set_index,
                                  letter_set);
   board_set_cross_score(board, row, col, dir, cross_set_index, score);

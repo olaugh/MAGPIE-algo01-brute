@@ -3,4 +3,4 @@
 
 void word_lookup_binary_search(void);
 
-#endif
+#endif // BINARY_DICTIONARY_TEST_H
