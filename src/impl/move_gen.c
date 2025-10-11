@@ -2179,8 +2179,7 @@ void gen_load_position(MoveGen *gen, const MoveGenArgs *args) {
   gen->rack_cross_set = 0;
   memset(gen->tile_scores, 0, sizeof(gen->tile_scores));
   for (int i = 0; i < ld_get_size(&gen->ld); i++) {
-    int count = rack_get_letter(&gen->player_rack, i);
-    if (count > 0) {
+    if (rack_get_letter(&gen->player_rack, i) > 0) {
       gen->rack_cross_set = gen->rack_cross_set | ((uint64_t)1 << i);
     }
     gen->tile_scores[i] = ld_get_score(&gen->ld, i);

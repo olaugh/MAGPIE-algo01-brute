@@ -83,14 +83,4 @@ static uint64_t get_total_memory(void) {
   return total_memory;
 }
 
-// int main() {
-//     uint64_t memory = get_total_memory();
-//     if (memory > 0) {
-//         printf("Total Physical Memory: %llu MB\n", memory / (1024 * 1024));
-//     } else {
-//         printf("Failed to retrieve total memory.\n");
-//     }
-//     return 0;
-// }
-
 #endif

@@ -640,9 +640,6 @@ board_are_bonus_squares_symmetric_by_transposition(const Board *board) {
 }
 
 static inline void board_update_all_anchors(Board *board) {
-  // printf("DEBUG board_update_all_anchors: tiles_played=%d\n",
-  //        board->tiles_played);
-  // fflush(stdout);
   if (board->tiles_played > 0) {
     for (int i = 0; i < BOARD_DIM; i++) {
       for (int j = 0; j < BOARD_DIM; j++) {
@@ -660,22 +657,11 @@ static inline void board_update_all_anchors(Board *board) {
 
     int start_row = board->start_coords[0];
     int start_col = board->start_coords[1];
-    // printf("DEBUG board_update_all_anchors: empty board, start=(%d,%d), "
-    //        "is_brick=%d\n",
-    //        start_row, start_col,
-    //        board_get_is_brick(board, start_row, start_col));
-    // fflush(stdout);
     if (!board_get_is_brick(board, start_row, start_col)) {
-      // printf("DEBUG: Setting anchor at (%d,%d) HORIZONTAL\n", start_row,
-      //        start_col);
-      // fflush(stdout);
       board_set_anchor(board, start_row, start_col, BOARD_HORIZONTAL_DIRECTION,
                        true);
       if (start_row != start_col ||
           !board_are_bonus_squares_symmetric_by_transposition(board)) {
-        // printf("DEBUG: Setting anchor at (%d,%d) VERTICAL\n", start_row,
-        //        start_col);
-        // fflush(stdout);
         board_set_anchor(board, start_row, start_col, BOARD_VERTICAL_DIRECTION,
                          true);
       }
