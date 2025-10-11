@@ -1,121 +1,121 @@
-# Current Task: Naive Recursive Move Generation with Binary Search
+# Current Task: Trace Logging for Video Visualization
 
-## Status: ✅ COMPLETE
+## Status: ✅ Phase 1 Complete - Word Lookup Tracing Working
 
 ## Summary
 
-Successfully implemented naive recursive move generation that:
-1. **Places tiles indiscriminately** without KWG prefix filtering
-2. **Validates words** using binary or linear search against word lists
-3. **Works with incomplete racks** (fewer than RACK_SIZE tiles)
-4. **Supports both orientations** (horizontal and vertical)
-5. **Matches KWG output** for all tested positions
+Implemented JSONL trace logging infrastructure to capture internal algorithm states for educational video production. Successfully logs binary and linear search operations with detailed comparison tracking.
 
-## Implementation
+## What's Working
 
-### Files Modified
-- `src/impl/move_gen.c` - Added three new functions:
-  - `naive_recursive_gen()` (line ~666)
-  - `naive_go_on()` (line ~779)
-  - `naive_check_word_and_record()` (line ~737)
+### 1. Trace Infrastructure ✅
+- Created `src/util/trace.{c,h}` with global file handles
+- Two independent trace streams: movegen and word lookup
+- Command-line flags: `-tracemovegen <path>` and `-tracewordlookup <path>`
+- Line-buffered output for real-time viewing
+- Automatic open/close in `impl_move_gen()`
 
-### Key Design Decisions
+### 2. Word Lookup Tracing ✅
+- **Binary Search**: Logs left/mid/right bounds for each comparison
+- **Linear Search**: Logs index and comparison result for each word
+- Both log final `search_complete` with total comparisons and outcome
+- Output format: JSONL (one JSON per line)
 
-1. **No Extension Sets**: Unlike `recursive_gen`, we don't use `left_extension_set` or `right_extension_set` for filtering. We place tiles indiscriminately based only on cross-checks.
-
-2. **Shadow Playing Bypass**: For word lists, we skip shadow playing entirely and add all anchors directly to the heap with `EQUITY_MAX_VALUE`.
-
-3. **Anchor Continuation**: Removed the `anchor_right_extension_set` check that was preventing continuation through anchors with incomplete racks.
-
-### Function Flow
-
-```
-shadow_by_orientation()
-  └─> For each anchor (when using word lists):
-        Add directly to anchor_heap (no shadow play)
-
-gen_record_scoring_plays()
-  └─> For each anchor from heap:
-        naive_recursive_gen(col, ...)
-          ├─> If square has letter: playthrough via naive_go_on()
-          └─> If square empty: try each rack letter
-                └─> naive_go_on(col, letter, ...)
-                      ├─> Update strip, score, cross-scores
-                      ├─> Check if word complete: naive_check_word_and_record()
-                      │     ├─> Build word from strip (unblank letters)
-                      │     ├─> Binary/linear search in word list
-                      │     └─> If found: record_tile_placement_move()
-                      ├─> Continue left: naive_recursive_gen(col-1, ...)
-                      └─> Continue right: naive_recursive_gen(col+1, ...)
+**Example Output:**
+```jsonl
+{"type":"comparison","method":"binary","left":0,"mid":139538,"right":279076,"cmp_result":12}
+{"type":"comparison","method":"binary","left":0,"mid":69768,"right":139537,"cmp_result":3}
+{"type":"search_complete","method":"binary","found":true,"comparisons":18}
 ```
 
-## Bugs Fixed
+### 3. Move Generation Tracing (Partial) ⚠️
+- Added to `exhaustive_gen_recursive()` but this function isn't used by `-lswords`/`-luwords`
+- Need to add to `naive_recursive_gen()` (the actual function called with word lists)
 
-### Bug #1: Vertical Moves Not Generated
-**Problem**: Vertical anchors were being detected but not added to the anchor heap.
-**Root Cause**: Shadow playing uses KWG `anchor_left_extension_set` and `anchor_right_extension_set`, which are not valid for word list generation. With extension sets of 0, `shadow_start()` would exit early without setting `max_tiles_to_play`, causing `shadow_play_for_anchor()` to return without adding the anchor.
-**Solution**: When using word lists, bypass shadow playing entirely in `shadow_by_orientation()`. Add all anchors directly to the heap with `EQUITY_MAX_VALUE`.
+**Implemented Events:**
+- `tile_placed`: Logs tile, word_so_far, remaining_rack at each placement
+- `move_found`: Logs word, position, tiles_played, leave, leave_value, best_score, best_equity
 
-### Bug #2: Incomplete Rack Playthrough Failure
-**Problem**: With a single-tile rack (e.g., just 'L'), moves like f14.AL failed where 'A' exists on the board and 'L' must be placed after it.
-**Root Cause**: In `naive_go_on()` at line ~823, the condition to continue right through the anchor was:
-```c
-if ((gen->tiles_played != 0) ||
-    (gen->anchor_right_extension_set & gen->rack_cross_set) != 0)
-```
-When playing through the anchor tile (tiles_played=0), it relied on `anchor_right_extension_set` which is a KWG-specific optimization not applicable to naive generation.
-**Solution**: For naive generation, always allow continuing through the anchor (removed the extension set check).
+## Current Limitations
 
-## Testing Results
+1. **Move generation trace is empty** when using `-lswords` because:
+   - `naive_recursive_gen` is used (not `exhaustive_gen_recursive`)
+   - Logging was added to the wrong function
+   - Need to instrument `naive_recursive_gen` instead
 
-### Empty Board (2-tile rack)
-```bash
-cgp 15/.../15 AT/ 0/0 0 -lswords true
-```
-✅ Finds: 8g.AT, 8g.TA, 8h.AT, 8h.TA (4 moves + exchanges + pass)
-
-### Complex Board (1-tile rack)
-```bash
-cgp 1hEDONIC3MILT/.../15 L/II 495/370 0 -lswords true
-```
-✅ Finds: f13.LA, f14.AL (matches KWG exactly)
-
-## Key Insights
-
-1. **Incomplete Racks Are the Edge Case**: The bugs only manifested with racks having fewer than RACK_SIZE (7) tiles. Full racks masked the extension set filtering issues.
-
-2. **Extension Sets Are KWG-Specific**: The `left_extension_set` and `right_extension_set` are optimizations for KWG-based generation. They don't apply to naive generation with word lists.
-
-3. **Shadow Playing Requires KWG**: Shadow playing calculates highest possible scores by simulating plays using the KWG. Without a valid KWG, shadow playing fails or produces incorrect results.
+2. **Linear search is very slow** on full racks:
+   - Timeout with 7-tile rack on empty board
+   - Works fine with 2-3 tile racks
+   - Binary search works well for all rack sizes
 
 ## Usage
 
 ```bash
-# Naive generation with sorted word list (binary search)
+# Test with small rack and binary search (WORKS)
 ./bin/magpie << 'EOF'
-cgp <board> <racks> <scores> 0 -lex CSW21 -ld english -lswords true
-gen -numplays 10
+cgp 15/15/15/15/15/15/15/15/15/15/15/15/15/15/15 ARE/ 0/0 0 \
+  -lex CSW21 -ld english -lswords true -s1 score -s2 score \
+  -tracemovegen movegen.jsonl -tracewordlookup wordlookup.jsonl
+gen -numplays 5
 EOF
 
-# Naive generation with unsorted word list (linear search)
-./bin/magpie << 'EOF'
-cgp <board> <racks> <scores> 0 -lex CSW21 -ld english -luwords true
-gen -numplays 10
-EOF
+# Word lookup trace will have ~600 lines showing binary searches
+# Move generation trace is currently empty (needs fix)
+```
+
+## Files Modified
+
+- `src/util/trace.{c,h}` - NEW: Trace infrastructure
+- `src/impl/config.c` - Added flags and initialization
+- `src/ent/dictionary_word.c` - Instrumented binary/linear search
+- `src/impl/move_gen.c` - Instrumented exhaustive_gen_recursive (wrong function!)
+- `.gitignore` - Added `*.jsonl`
+
+## Next Steps
+
+### Immediate (To Complete Phase 1)
+1. **Add logging to `naive_recursive_gen()`** at line ~666 in move_gen.c
+   - Log tile placements in the main loop
+   - Log word validation results
+   - This is the function actually called with `-lswords`/`-luwords`
+
+### Phase 2: Enhanced Logging
+2. **Add cross-set events** to show pruning
+3. **Add anchor events** to show anchor detection
+4. **Add rack permutation summary** at start of each anchor
+
+### Phase 3: Video Production
+5. **Write Python parser** for JSONL traces
+6. **Create Manim visualizations** for:
+   - Binary vs linear search comparison
+   - Rack permutation exploration
+   - Leave value calculations
+7. **Produce first video**: "From Linear to Binary Search"
+
+## Video Workflow
+
+```
+MAGPIE -tracemovegen → movegen.jsonl
+         -tracewordlookup → wordlookup.jsonl
+           ↓
+Python parser (read JSONL line-by-line)
+           ↓
+Manim animation renderer
+           ↓
+MP4 video (algorithm visualization)
 ```
 
 ## Code Locations
 
-- Naive generation entry: `src/impl/move_gen.c:2370` (in `gen_record_scoring_plays`)
-- Main recursive function: `src/impl/move_gen.c:666` (`naive_recursive_gen`)
-- Word validation: `src/impl/move_gen.c:737` (`naive_check_word_and_record`)
-- Continuation logic: `src/impl/move_gen.c:779` (`naive_go_on`)
-- Shadow bypass: `src/impl/move_gen.c:2135` (`shadow_by_orientation`)
-- Anchor continuation fix: `src/impl/move_gen.c:836-843` (removed extension set check)
+- Trace infrastructure: `src/util/trace.{c,h}`
+- Config integration: `src/impl/config.c:810` (trace_init call)
+- Word lookup logging: `src/ent/dictionary_word.c:183-261`
+- Move gen logging (needs fix): `src/impl/move_gen.c:895-994`
+- **Target for next work**: `src/impl/move_gen.c:668` (`naive_recursive_gen`)
 
-## Next Steps
+## Testing Notes
 
-This implementation is complete and ready for:
-1. Performance benchmarking vs KWG generation
-2. Integration into autoplay for algorithm comparison videos
-3. Further optimizations (e.g., caching, pruning) as separate incremental steps
+- Word lookup trace verified working with 613 lines generated
+- Binary search shows proper O(log n) behavior (~18 comparisons for 279k words)
+- Linear search would show O(n) behavior but too slow for full racks
+- Move generation trace empty due to wrong function instrumented
