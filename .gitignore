@@ -22,3 +22,4 @@ TODO
 *.DS_Store
 ._*
 original-*.txt
+*.jsonl

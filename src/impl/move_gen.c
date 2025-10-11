@@ -31,6 +31,7 @@
 #include "../ent/rack.h"
 #include "../ent/static_eval.h"
 #include "../util/io_util.h"
+#include "../util/trace.h"
 #include "wmp_move_gen.h"
 #include <assert.h>
 #include <stdbool.h>
@@ -891,6 +892,40 @@ void exhaustive_gen_recursive(MoveGen *gen, const Anchor *anchor, int start_col,
         leave_value = klv_get_leave_value(gen->klv, remaining_rack);
       }
 
+      // Trace: log move found with leave value and current best move
+      if (trace_movegen_enabled()) {
+        char word_str[BOARD_DIM + 1];
+        for (int i = 0; i < word_length; i++) {
+          word_str[i] = *ld_ml_to_hl(&gen->ld, candidate.word[i]);
+        }
+        word_str[word_length] = '\0';
+
+        char leave_str[RACK_SIZE + 1];
+        int leave_idx = 0;
+        for (int ml = 0; ml < ld_get_size(&gen->ld); ml++) {
+          int count = rack_get_letter(remaining_rack, ml);
+          for (int j = 0; j < count; j++) {
+            leave_str[leave_idx++] = *ld_ml_to_hl(&gen->ld, ml);
+          }
+        }
+        leave_str[leave_idx] = '\0';
+
+        Move *best_move = gen_get_best_move(gen);
+        int best_score = move_get_score(best_move);
+        Equity best_equity = move_get_equity(best_move);
+
+        fprintf(g_movegen_trace_file,
+                "{\"type\":\"move_found\",\"word\":\"%s\","
+                "\"row\":%d,\"col\":%d,\"dir\":\"%s\","
+                "\"tiles_played\":%d,\"leave\":\"%s\","
+                "\"leave_value\":%.3f,"
+                "\"best_score\":%d,\"best_equity\":%.3f}\n",
+                word_str, anchor->row, start_col,
+                anchor->dir == BOARD_HORIZONTAL_DIRECTION ? "H" : "V",
+                tiles_played, leave_str, equity_to_double(leave_value),
+                best_score, equity_to_double(best_equity));
+      }
+
       // Set fields for record_wmp_play
       gen->wmp_move_gen.word_length = word_length;
       const int saved_max_tiles = gen->max_tiles_to_play;
@@ -926,6 +961,38 @@ void exhaustive_gen_recursive(MoveGen *gen, const Anchor *anchor, int start_col,
       if (board_is_letter_allowed_in_cross_set(cross_set, ml)) {
         gen->playthrough_marked[pos] = ml;
         rack_take_letter(remaining_rack, ml);
+
+        // Trace: log tile placement
+        if (trace_movegen_enabled()) {
+          char word_so_far[BOARD_DIM + 1];
+          for (int i = 0; i <= pos; i++) {
+            if (gen->playthrough_marked[i] == PLAYED_THROUGH_MARKER) {
+              word_so_far[i] = *ld_ml_to_hl(
+                  &gen->ld, gen_cache_get_letter(gen, start_col + i));
+            } else {
+              word_so_far[i] = *ld_ml_to_hl(&gen->ld, gen->playthrough_marked[i]);
+            }
+          }
+          word_so_far[pos + 1] = '\0';
+
+          char remaining_str[RACK_SIZE + 1];
+          int rem_idx = 0;
+          for (int ml_i = 0; ml_i < ld_size; ml_i++) {
+            int count = rack_get_letter(remaining_rack, ml_i);
+            for (int j = 0; j < count; j++) {
+              remaining_str[rem_idx++] = *ld_ml_to_hl(&gen->ld, ml_i);
+            }
+          }
+          remaining_str[rem_idx] = '\0';
+
+          fprintf(g_movegen_trace_file,
+                  "{\"type\":\"tile_placed\",\"row\":%d,\"col\":%d,"
+                  "\"tile\":\"%c\",\"word_so_far\":\"%s\","
+                  "\"remaining_rack\":\"%s\"}\n",
+                  anchor->row, board_col, *ld_ml_to_hl(&gen->ld, ml),
+                  word_so_far, remaining_str);
+        }
+
         exhaustive_gen_recursive(gen, anchor, start_col, pos + 1,
                                  remaining_rack, word_length, word_list,
                                  use_binary_search);

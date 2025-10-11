@@ -6,6 +6,7 @@
 #include "../ent/letter_distribution.h"
 #include "../util/io_util.h"
 #include "../util/string_util.h"
+#include "../util/trace.h"
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -182,13 +183,37 @@ void dictionary_word_list_destroy(DictionaryWordList *dictionary_word_list) {
 bool dictionary_word_list_contains_word_linear_search(
     const DictionaryWordList *dictionary_word_list,
     const DictionaryWord *word) {
+  int comparisons = 0;
+  bool found = false;
+
   for (int i = 0; i < dictionary_word_list->count; i++) {
-    if (dictionary_word_compare(&dictionary_word_list->dictionary_words[i],
-                                word) == 0) {
-      return true;
+    comparisons++;
+    int cmp_result =
+        dictionary_word_compare(&dictionary_word_list->dictionary_words[i], word);
+
+    // Trace: log each comparison
+    if (trace_word_lookup_enabled()) {
+      fprintf(g_word_lookup_trace_file,
+              "{\"type\":\"comparison\",\"method\":\"linear\","
+              "\"index\":%d,\"cmp_result\":%d}\n",
+              i, cmp_result);
+    }
+
+    if (cmp_result == 0) {
+      found = true;
+      break;
     }
   }
-  return false;
+
+  // Trace: log search result
+  if (trace_word_lookup_enabled()) {
+    fprintf(g_word_lookup_trace_file,
+            "{\"type\":\"search_complete\",\"method\":\"linear\","
+            "\"found\":%s,\"comparisons\":%d}\n",
+            found ? "true" : "false", comparisons);
+  }
+
+  return found;
 }
 
 bool dictionary_word_list_contains_word_binary_search(
@@ -196,14 +221,26 @@ bool dictionary_word_list_contains_word_binary_search(
     const DictionaryWord *word) {
   int left = 0;
   int right = dictionary_word_list->count - 1;
+  int comparisons = 0;
+  bool found = false;
 
   while (left <= right) {
     int mid = left + (right - left) / 2;
+    comparisons++;
     int cmp = dictionary_word_compare(
         &dictionary_word_list->dictionary_words[mid], word);
 
+    // Trace: log each comparison with search bounds
+    if (trace_word_lookup_enabled()) {
+      fprintf(g_word_lookup_trace_file,
+              "{\"type\":\"comparison\",\"method\":\"binary\","
+              "\"left\":%d,\"mid\":%d,\"right\":%d,\"cmp_result\":%d}\n",
+              left, mid, right, cmp);
+    }
+
     if (cmp == 0) {
-      return true;
+      found = true;
+      break;
     }
     if (cmp < 0) {
       left = mid + 1;
@@ -211,7 +248,16 @@ bool dictionary_word_list_contains_word_binary_search(
       right = mid - 1;
     }
   }
-  return false;
+
+  // Trace: log search result
+  if (trace_word_lookup_enabled()) {
+    fprintf(g_word_lookup_trace_file,
+            "{\"type\":\"search_complete\",\"method\":\"binary\","
+            "\"found\":%s,\"comparisons\":%d}\n",
+            found ? "true" : "false", comparisons);
+  }
+
+  return found;
 }
 
 bool dictionary_word_list_is_sorted(

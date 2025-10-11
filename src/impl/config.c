@@ -33,6 +33,7 @@
 #include "../str/move_string.h"
 #include "../util/io_util.h"
 #include "../util/string_util.h"
+#include "../util/trace.h"
 #include "autoplay.h"
 #include "cgp.h"
 #include "convert.h"
@@ -98,6 +99,8 @@ typedef enum {
   ARG_TOKEN_USE_SMALL_PLAYS,
   ARG_TOKEN_LOAD_UNSORTED_WORDS,
   ARG_TOKEN_LOAD_SORTED_WORDS,
+  ARG_TOKEN_TRACE_MOVEGEN,
+  ARG_TOKEN_TRACE_WORD_LOOKUP,
   ARG_TOKEN_SIM_WITH_INFERENCE,
   ARG_TOKEN_WRITE_BUFFER_SIZE,
   ARG_TOKEN_HUMAN_READABLE,
@@ -163,6 +166,8 @@ struct Config {
   bool use_small_plays;
   bool load_unsorted_words;
   bool load_sorted_words;
+  char *trace_movegen_path;
+  char *trace_word_lookup_path;
   bool sim_with_inference;
   bool print_boards;
   char *record_filepath;
@@ -801,6 +806,9 @@ void impl_move_gen(Config *config, ErrorStack *error_stack) {
     return;
   }
 
+  // Initialize trace logging if paths were provided
+  trace_init(config->trace_movegen_path, config->trace_word_lookup_path);
+
   config_init_game(config);
   game_gen_all_cross_sets(config->game);
   board_update_all_anchors(game_get_board(config->game));
@@ -819,6 +827,9 @@ void impl_move_gen(Config *config, ErrorStack *error_stack) {
       .eq_margin_movegen = config->eq_margin_movegen,
   };
   generate_moves_for_game(&args);
+
+  // Close trace files when done
+  trace_close();
 }
 
 // Inference
@@ -2298,6 +2309,22 @@ void config_load_data(Config *config, ErrorStack *error_stack) {
     return;
   }
 
+  // Trace file paths
+
+  const char *movegen_trace_path =
+      config_get_parg_value(config, ARG_TOKEN_TRACE_MOVEGEN, 0);
+  if (movegen_trace_path) {
+    free(config->trace_movegen_path);
+    config->trace_movegen_path = string_duplicate(movegen_trace_path);
+  }
+
+  const char *word_lookup_trace_path =
+      config_get_parg_value(config, ARG_TOKEN_TRACE_WORD_LOOKUP, 0);
+  if (word_lookup_trace_path) {
+    free(config->trace_word_lookup_path);
+    config->trace_word_lookup_path = string_duplicate(word_lookup_trace_path);
+  }
+
   // Sim with inference
 
   config_load_bool(config, ARG_TOKEN_SIM_WITH_INFERENCE,
@@ -2847,6 +2874,8 @@ void config_create_default_internal(Config *config, ErrorStack *error_stack,
   arg(ARG_TOKEN_USE_SMALL_PLAYS, "sp", 1, 1);
   arg(ARG_TOKEN_LOAD_UNSORTED_WORDS, "luwords", 1, 1);
   arg(ARG_TOKEN_LOAD_SORTED_WORDS, "lswords", 1, 1);
+  arg(ARG_TOKEN_TRACE_MOVEGEN, "tracemovegen", 1, 1);
+  arg(ARG_TOKEN_TRACE_WORD_LOOKUP, "tracewordlookup", 1, 1);
   arg(ARG_TOKEN_SIM_WITH_INFERENCE, "sinfer", 1, 1);
   arg(ARG_TOKEN_HUMAN_READABLE, "hr", 1, 1);
   arg(ARG_TOKEN_WRITE_BUFFER_SIZE, "wb", 1, 1);
@@ -2890,6 +2919,8 @@ void config_create_default_internal(Config *config, ErrorStack *error_stack,
   config->human_readable = false;
   config->load_unsorted_words = false;
   config->load_sorted_words = false;
+  config->trace_movegen_path = NULL;
+  config->trace_word_lookup_path = NULL;
   config->sim_with_inference = false;
   config->print_boards = false;
   config->game_variant = DEFAULT_GAME_VARIANT;
@@ -2938,5 +2969,7 @@ void config_destroy(Config *config) {
   conversion_results_destroy(config->conversion_results);
   game_string_options_destroy(config->game_string_options);
   free(config->data_paths);
+  free(config->trace_movegen_path);
+  free(config->trace_word_lookup_path);
   free(config);
 }
