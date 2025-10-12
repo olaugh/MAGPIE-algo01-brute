@@ -65,7 +65,8 @@ done
 #            which handles spaces or special characters in filenames correctly.
 # 'while IFS= read -r -d $'\0' C_FILE; do ... done': Reads null-separated filenames
 #                                                into the C_FILE variable.
-find $SEARCH_DIRECTORIES -name "*.c" -print0 | grep -zv "$EXCLUDE_PATTERN" | while IFS= read -r -d $'\0' C_FILE; do
+# Exclude macOS resource fork files (._*) from analysis
+find $SEARCH_DIRECTORIES -name "*.c" -print0 | grep -zv "$EXCLUDE_PATTERN" | grep -zv '/\._' | while IFS= read -r -d $'\0' C_FILE; do
     echo "Analyzing: $C_FILE"
 
     CLANG_TIDY_CMD="$CLANG_TIDY_EXEC \"$C_FILE\" \

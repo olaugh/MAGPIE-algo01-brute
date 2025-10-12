@@ -196,11 +196,57 @@ Equity values are stored as fixed-point integers (scaled by 1000 via `EQUITY_RES
 
 ## Code Quality Tools
 
-### Static Analysis
+### Running Static Analysis Locally
+
+To avoid waiting for CI feedback, run these tools locally before committing:
+
+**cppcheck** (downloads and compiles automatically on first run):
+```bash
+./cppcheck.sh
+```
+First run takes ~2-3 minutes to download and compile cppcheck 2.17.1. Subsequent runs are fast (uses locally compiled binary). The script automatically uses all available CPU cores.
+
+**clang-tidy** (requires clang-tidy to be installed):
+```bash
+# Install clang-tidy if needed (macOS):
+brew install llvm
+
+# Run with LLVM's clang-tidy (Apple Silicon):
+./tidy.sh /opt/homebrew/opt/llvm/bin/clang-tidy
+
+# Or for Intel Mac:
+./tidy.sh /usr/local/opt/llvm/bin/clang-tidy
+
+# If clang-tidy is in your PATH:
+./tidy.sh clang-tidy
+```
+Note: CI uses clang-tidy-18, but any recent version should catch most issues. The script now automatically excludes macOS resource fork files (`._*`).
+
+**clang-format** (requires clang-format-20):
+```bash
+python3 format.py     # Check formatting issues
+clang-format-20 -i <file>  # Format specific file in-place
+```
+
+**Recommended workflow before committing:**
+```bash
+# 1. Format code
+python3 format.py
+
+# 2. Run static analysis (can run in parallel)
+./cppcheck.sh &
+./tidy.sh &
+wait
+
+# 3. Commit if all pass
+git add -A && git commit
+```
+
+### Static Analysis Scripts
 
 ```bash
-./cppcheck.sh         # Run cppcheck
-./tidy.sh             # Run clang-tidy (requires clang-tidy-18)
+./cppcheck.sh         # Run cppcheck (auto-downloads and compiles)
+./tidy.sh             # Run clang-tidy (requires clang-tidy installation)
 python3 format.py     # Check clang-format (requires clang-format-20)
 python3 find_circ_deps.py  # Check for circular dependencies
 ```
