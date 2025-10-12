@@ -914,16 +914,17 @@ void exhaustive_gen_recursive(MoveGen *gen, const Anchor *anchor, int start_col,
         int best_score = move_get_score(best_move);
         Equity best_equity = move_get_equity(best_move);
 
-        fprintf(g_movegen_trace_file,
-                "{\"type\":\"move_found\",\"word\":\"%s\","
-                "\"row\":%d,\"col\":%d,\"dir\":\"%s\","
-                "\"tiles_played\":%d,\"leave\":\"%s\","
-                "\"leave_value\":%.3f,"
-                "\"best_score\":%d,\"best_equity\":%.3f}\n",
-                word_str, anchor->row, start_col,
-                anchor->dir == BOARD_HORIZONTAL_DIRECTION ? "H" : "V",
-                tiles_played, leave_str, equity_to_double(leave_value),
-                best_score, equity_to_double(best_equity));
+        // Ignore fprintf return value - trace logging is non-critical
+        (void)fprintf(g_movegen_trace_file,
+                      "{\"type\":\"move_found\",\"word\":\"%s\","
+                      "\"row\":%d,\"col\":%d,\"dir\":\"%s\","
+                      "\"tiles_played\":%d,\"leave\":\"%s\","
+                      "\"leave_value\":%.3f,"
+                      "\"best_score\":%d,\"best_equity\":%.3f}\n",
+                      word_str, anchor->row, start_col,
+                      anchor->dir == BOARD_HORIZONTAL_DIRECTION ? "H" : "V",
+                      tiles_played, leave_str, equity_to_double(leave_value),
+                      best_score, equity_to_double(best_equity));
       }
 
       // Set fields for record_wmp_play
@@ -986,12 +987,13 @@ void exhaustive_gen_recursive(MoveGen *gen, const Anchor *anchor, int start_col,
           }
           remaining_str[rem_idx] = '\0';
 
-          fprintf(g_movegen_trace_file,
-                  "{\"type\":\"tile_placed\",\"row\":%d,\"col\":%d,"
-                  "\"tile\":\"%c\",\"word_so_far\":\"%s\","
-                  "\"remaining_rack\":\"%s\"}\n",
-                  anchor->row, board_col, *ld_ml_to_hl(&gen->ld, ml),
-                  word_so_far, remaining_str);
+          // Ignore fprintf return value - trace logging is non-critical
+          (void)fprintf(g_movegen_trace_file,
+                        "{\"type\":\"tile_placed\",\"row\":%d,\"col\":%d,"
+                        "\"tile\":\"%c\",\"word_so_far\":\"%s\","
+                        "\"remaining_rack\":\"%s\"}\n",
+                        anchor->row, board_col, *ld_ml_to_hl(&gen->ld, ml),
+                        word_so_far, remaining_str);
         }
 
         exhaustive_gen_recursive(gen, anchor, start_col, pos + 1,

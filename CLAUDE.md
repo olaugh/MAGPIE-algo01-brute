@@ -235,12 +235,46 @@ int result =
     some_long_function_name(argument1, argument2, argument3);
 ```
 
+### Static Analysis (clang-tidy)
+
+**Important**: Anticipate and fix common clang-tidy warnings before committing:
+
+**1. Missing Headers (misc-include-cleaner)**
+- Always `#include <stdio.h>` when using FILE, fopen, fclose, fprintf, setvbuf
+- Check that all used types/functions have their headers directly included
+- Don't rely on transitive includes
+
+**2. Ignored Return Values (cert-err33-c)**
+- Functions like `fprintf`, `fclose`, `setvbuf` have return values that must be handled
+- If the return value is truly non-critical, cast to void: `(void)fprintf(...)`
+- Add a comment explaining why it's safe to ignore: `// Ignore fprintf return - trace logging is non-critical`
+
+**3. File Descriptor Flags (android-cloexec-fopen)**
+- Use `fopen(path, "we")` instead of `fopen(path, "w")` to set O_CLOEXEC
+- The 'e' flag prevents file descriptors leaking to child processes
+
+**Common Pattern for Trace/Debug Logging:**
+```c
+// Correct: cast to void and explain why
+// Ignore fprintf return value - trace logging is non-critical
+(void)fprintf(trace_file, "{\"type\":\"event\",\"value\":%d}\n", value);
+
+// Correct: use 'e' flag for O_CLOEXEC
+FILE *f = fopen(path, "we");
+if (!f) {
+  log_fatal("Failed to open file: %s", path);
+}
+
+// Ignore setvbuf return - line buffering failure is non-critical
+(void)setvbuf(f, NULL, _IOLBF, 0);
+```
+
 ### CI Pipeline
 
 GitHub Actions runs:
 - cppcheck static analysis
-- clang-tidy static analysis
-- clang-format verification
+- clang-tidy static analysis (see above for common issues)
+- clang-format verification (see Code Formatting section)
 - Circular dependency check
 - Unit tests (standard and super board)
 
