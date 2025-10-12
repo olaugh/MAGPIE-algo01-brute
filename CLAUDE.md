@@ -269,6 +269,46 @@ if (!f) {
 (void)setvbuf(f, NULL, _IOLBF, 0);
 ```
 
+### Static Analysis (cppcheck)
+
+**Important**: Anticipate and fix common cppcheck warnings before committing:
+
+**1. Printf Format Specifiers (invalidPrintfArgType_sint/uint)**
+- Use `%u` for `unsigned int` types
+- Use `%d` for `int` (signed) types
+- Common mistake: using `%d` for struct fields that are unsigned
+
+**Example - Anchor struct fields are unsigned:**
+```c
+// Wrong - anchor->row is unsigned int
+fprintf(file, "row:%d", anchor->row);  // cppcheck warning
+
+// Correct - use %u for unsigned
+fprintf(file, "row:%u", anchor->row);
+```
+
+**2. Const Correctness (constVariablePointer)**
+- If a pointer is never modified, declare it as `const Type *`
+- Helps catch bugs and documents intent
+
+```c
+// If best_move is never modified after assignment:
+Move *best_move = gen_get_best_move(gen);  // cppcheck warning
+
+// Correct - declare as const pointer
+const Move *best_move = gen_get_best_move(gen);
+```
+
+**Best Practice**: Check struct definitions to verify field types before using printf. For example, `Anchor` has unsigned bitfields:
+```c
+typedef struct Anchor {
+  unsigned int row : 4;      // Use %u
+  unsigned int col : 4;      // Use %u
+  unsigned int dir : 1;      // Use %u
+  // ...
+} Anchor;
+```
+
 ### CI Pipeline
 
 GitHub Actions runs:

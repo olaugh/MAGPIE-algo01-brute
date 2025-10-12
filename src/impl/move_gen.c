@@ -910,14 +910,14 @@ void exhaustive_gen_recursive(MoveGen *gen, const Anchor *anchor, int start_col,
         }
         leave_str[leave_idx] = '\0';
 
-        Move *best_move = gen_get_best_move(gen);
+        const Move *best_move = gen_get_best_move(gen);
         int best_score = move_get_score(best_move);
         Equity best_equity = move_get_equity(best_move);
 
         // Ignore fprintf return value - trace logging is non-critical
         (void)fprintf(g_movegen_trace_file,
                       "{\"type\":\"move_found\",\"word\":\"%s\","
-                      "\"row\":%d,\"col\":%d,\"dir\":\"%s\","
+                      "\"row\":%u,\"col\":%d,\"dir\":\"%s\","
                       "\"tiles_played\":%d,\"leave\":\"%s\","
                       "\"leave_value\":%.3f,"
                       "\"best_score\":%d,\"best_equity\":%.3f}\n",
@@ -989,7 +989,7 @@ void exhaustive_gen_recursive(MoveGen *gen, const Anchor *anchor, int start_col,
 
           // Ignore fprintf return value - trace logging is non-critical
           (void)fprintf(g_movegen_trace_file,
-                        "{\"type\":\"tile_placed\",\"row\":%d,\"col\":%d,"
+                        "{\"type\":\"tile_placed\",\"row\":%u,\"col\":%d,"
                         "\"tile\":\"%c\",\"word_so_far\":\"%s\","
                         "\"remaining_rack\":\"%s\"}\n",
                         anchor->row, board_col, *ld_ml_to_hl(&gen->ld, ml),
