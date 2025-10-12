@@ -8,6 +8,7 @@
 #include "../util/string_util.h"
 #include "../util/trace.h"
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -193,10 +194,11 @@ bool dictionary_word_list_contains_word_linear_search(
 
     // Trace: log each comparison
     if (trace_word_lookup_enabled()) {
-      fprintf(g_word_lookup_trace_file,
-              "{\"type\":\"comparison\",\"method\":\"linear\","
-              "\"index\":%d,\"cmp_result\":%d}\n",
-              i, cmp_result);
+      // Ignore fprintf return value - trace logging is non-critical
+      (void)fprintf(g_word_lookup_trace_file,
+                    "{\"type\":\"comparison\",\"method\":\"linear\","
+                    "\"index\":%d,\"cmp_result\":%d}\n",
+                    i, cmp_result);
     }
 
     if (cmp_result == 0) {
@@ -207,10 +209,11 @@ bool dictionary_word_list_contains_word_linear_search(
 
   // Trace: log search result
   if (trace_word_lookup_enabled()) {
-    fprintf(g_word_lookup_trace_file,
-            "{\"type\":\"search_complete\",\"method\":\"linear\","
-            "\"found\":%s,\"comparisons\":%d}\n",
-            found ? "true" : "false", comparisons);
+    // Ignore fprintf return value - trace logging is non-critical
+    (void)fprintf(g_word_lookup_trace_file,
+                  "{\"type\":\"search_complete\",\"method\":\"linear\","
+                  "\"found\":%s,\"comparisons\":%d}\n",
+                  found ? "true" : "false", comparisons);
   }
 
   return found;
@@ -232,10 +235,11 @@ bool dictionary_word_list_contains_word_binary_search(
 
     // Trace: log each comparison with search bounds
     if (trace_word_lookup_enabled()) {
-      fprintf(g_word_lookup_trace_file,
-              "{\"type\":\"comparison\",\"method\":\"binary\","
-              "\"left\":%d,\"mid\":%d,\"right\":%d,\"cmp_result\":%d}\n",
-              left, mid, right, cmp);
+      // Ignore fprintf return value - trace logging is non-critical
+      (void)fprintf(g_word_lookup_trace_file,
+                    "{\"type\":\"comparison\",\"method\":\"binary\","
+                    "\"left\":%d,\"mid\":%d,\"right\":%d,\"cmp_result\":%d}\n",
+                    left, mid, right, cmp);
     }
 
     if (cmp == 0) {
@@ -251,10 +255,11 @@ bool dictionary_word_list_contains_word_binary_search(
 
   // Trace: log search result
   if (trace_word_lookup_enabled()) {
-    fprintf(g_word_lookup_trace_file,
-            "{\"type\":\"search_complete\",\"method\":\"binary\","
-            "\"found\":%s,\"comparisons\":%d}\n",
-            found ? "true" : "false", comparisons);
+    // Ignore fprintf return value - trace logging is non-critical
+    (void)fprintf(g_word_lookup_trace_file,
+                  "{\"type\":\"search_complete\",\"method\":\"binary\","
+                  "\"found\":%s,\"comparisons\":%d}\n",
+                  found ? "true" : "false", comparisons);
   }
 
   return found;
