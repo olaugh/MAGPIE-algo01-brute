@@ -2,177 +2,203 @@
 
 ## Project Goal
 
-Create a series of 10-20 educational YouTube videos demonstrating the evolution from naive/brute-force Scrabble move generation to state-of-the-art algorithms. Each video illustrates a discrete optimization step with visual proof of improvement.
+Create a series of **3-5 educational YouTube videos** (15-25 minutes each) demonstrating the evolution from naive/brute-force Scrabble move generation to state-of-the-art algorithms. Each video covers multiple related optimizations (10-20 total algorithms) with visual proof of improvement and cumulative performance gains.
+
+## Algorithm Inventory
+
+We have **~15-20 distinct optimizations** to visualize:
+
+**Foundation (Algorithms 1-3)**
+1. Brute force permutation generation
+2. Linear word list search (O(n))
+3. Sorted list + binary search (O(log n))
+
+**Structural Improvements (Algorithms 4-7)**
+4. Cross-set pre-computation
+5. Anchor detection
+6. Left-part generation
+7. Right-part generation
+
+**Data Structure Revolution (Algorithms 8-10)**
+8. Trie/prefix tree
+9. GADDAG/KWG (bidirectional trie)
+10. Node packing and memory optimization
+
+**Advanced Pruning (Algorithms 11-15)**
+11. Shadow playing (super-leave)
+12. Extension set filtering
+13. Equity-based pruning
+14. Leave value adjustment (KLV)
+15. Best-move-found early termination
+
+**Endgame Optimizations (Algorithms 16-18)**
+16. Word maps (WMP)
+17. Dense board hash lookup
+18. Exhaustive endgame solver
+
+**Plus**: Cross-check computation, rack cross-set caching, move recording strategies, etc.
 
 ## Current Status
 
-✅ **Phase 0**: Naive move generation implemented
-✅ **Phase 1**: Binary search word validation working
+✅ **Phase 0**: Naive move generation implemented (Algorithms 1-3)
+✅ **Phase 1**: Binary search validation working
 🔄 **Phase 2**: Trace logging infrastructure (word lookup complete, move gen partial)
 ⏳ **Phase 3**: Video production toolchain
 
 ---
 
-## Video Series Outline
+## Video Series Outline (3-5 Videos, 15-25 min each)
 
-### Arc 1: From Brute Force to Binary Search (Videos 1-3)
+### Video 1: "From Brute Force to Structure" (18-20 min)
+**Covers Algorithms 1-7** (Foundation + Structural Improvements)
 
-#### Video 1: "The Naive Approach - How Bad Can It Be?"
-**Algorithm**: Linear word list search
-**Key Metrics**:
-- ~87,000 comparisons per word check (avg)
-- ~5+ minutes for 7-tile rack on empty board
-- O(n) complexity visualization
+**Story Arc**: Start impossibly slow, end with respectable performance
 
-**Visual Elements**:
-- Scrolling word list with counter
-- Rack permutation tree
-- Time elapsed counter ticking up
+**Part 1: The Naive Baseline (4 min)**
+- Algorithm 1-2: Brute force permutation + linear search
+- Visual: Scrolling through 279,076 words repeatedly
+- Metric: 5+ minutes for "AEINRST" on empty board
+- Lesson: "Sometimes the obvious solution is unusable"
 
-**Lesson**: "Sometimes the straightforward solution is too slow"
+**Part 2: Binary Search (3 min)**
+- Algorithm 3: Sort once, binary search forever
+- Visual: Split screen comparison, pointer animation
+- Metric: 6000x speedup (87k → 18 comparisons per word)
+- Lesson: "Preprocessing can pay massive dividends"
 
----
+**Part 3: Cross-Sets (4 min)**
+- Algorithm 4: Pre-compute valid letters per square
+- Visual: Board with cross-set overlays, pruning visualization
+- Metric: 60-80% reduction in positions tried
+- Lesson: "Constraints are your friend"
 
-#### Video 2: "Binary Search - The First Real Optimization"
-**Algorithm**: Sorted word list + binary search
-**Key Metrics**:
-- ~18 comparisons per word check (avg for CSW21)
-- ~5 seconds for 7-tile rack on empty board
-- O(log n) complexity visualization
+**Part 4: Anchors (4 min)**
+- Algorithms 5-7: Anchor detection + left/right generation
+- Visual: Highlight valid attachment points, generation flow
+- Metric: 225 positions → 20-40 anchors
+- Lesson: "Focus your effort where it matters"
 
-**Visual Elements**:
-- Split screen: linear on left, binary on right
-- Binary search pointer animation (left/mid/right)
-- Comparison counter (87k vs 18)
-- Speedup: ~6000x faster
-
-**Lesson**: "Sorting once pays dividends forever"
+**Cumulative Result**: 5+ minutes → ~5 seconds (60,000x speedup so far)
 
 ---
 
-#### Video 3: "Cross-Sets - Pruning the Search Space"
-**Algorithm**: Cross-set pre-computation
-**Key Metrics**:
-- Reduces candidate positions by 60-80%
-- Eliminates invalid placements before word checks
+### Video 2: "The GADDAG Revolution" (15-18 min)
+**Covers Algorithms 8-10** (Data Structure Revolution)
 
-**Visual Elements**:
-- Board grid with cross-set overlays
-- Red X over invalid positions
-- Green highlight on valid cross-check squares
-- Counter showing placements attempted vs pruned
+**Story Arc**: Show how the right data structure changes everything
 
-**Lesson**: "The best work is work you never do"
+**Part 1: The Trie Awakening (5 min)**
+- Algorithm 8: Prefix trees for word validation
+- Visual: Animated tree traversal vs list scanning
+- Metric: O(word_length) validation instead of O(log dictionary_size)
+- Compare: Binary search (18 comparisons) → Trie (7 steps for "RETINAS")
+- Lesson: "Structure enables algorithms"
 
----
+**Part 2: The GADDAG Insight (6 min)**
+- Algorithm 9: Bidirectional word graph
+- Visual: Show forward/backward word representations
+- Key insight: One structure for both left and right extensions
+- Real example: Building "RETINAS" from anchor "I"
+- Lesson: "Clever encoding eliminates redundancy"
 
-### Arc 2: Anchor-Based Generation (Videos 4-6)
+**Part 3: Implementation Details (4 min)**
+- Algorithm 10: Node packing and memory optimization
+- Visual: Bit-level structure breakdown
+- Show 32-bit node format: arc pointer, letter, flags
+- Memory comparison: 279k words → compact graph
+- Lesson: "Production systems need production engineering"
 
-#### Video 4: "Anchors - Where Valid Moves Must Touch"
-**Algorithm**: Anchor detection
-**Key Metrics**:
-- Reduces search space from 225 positions to 20-40 anchors
-- O(n²) → O(anchors × rack_size!)
-
-**Visual Elements**:
-- Empty board: show center square anchor
-- Mid-game: highlight anchors next to existing tiles
-- Animation of anchor detection sweep
-
-**Lesson**: "Structure guides search"
+**Cumulative Result**: 5 seconds → ~50 milliseconds (100x faster again)
 
 ---
 
-#### Video 5: "Left Extensions and Prefix Filtering"
-**Algorithm**: Left-part generation with KWG prefix checks
-**Key Metrics**:
-- Prunes 90%+ of invalid prefixes early
-- No more checking full words that can't possibly exist
+### Video 3: "Advanced Pruning Techniques" (20-22 min)
+**Covers Algorithms 11-15** (Advanced Pruning)
 
-**Visual Elements**:
-- Word tree showing valid prefixes
-- Red X when prefix fails KWG check
-- Comparison: naive tries "ZZZZZZZ", smart stops at "ZZ"
+**Story Arc**: Avoid work you don't need to do
 
-**Lesson**: "Fail fast, fail early"
+**Part 1: Shadow Playing (5 min)**
+- Algorithm 11: Super-leave pre-computation
+- Visual: Ghost tiles showing maximum possible score
+- Metric: Prune 50%+ of anchors before generation
+- Lesson: "A good estimate beats perfect precision"
 
----
+**Part 2: Extension Sets (4 min)**
+- Algorithm 12: Filter by rack compatibility
+- Visual: Venn diagram of extension set ∩ rack
+- Show early rejection when no overlap
+- Lesson: "Check compatibility before committing"
 
-#### Video 6: "The GADDAG - Reversible Word Graphs"
-**Algorithm**: KWG/GADDAG structure
-**Key Metrics**:
-- Single data structure for left and right extensions
-- O(1) prefix validity checking
-- Memory-efficient node packing
+**Part 3: Equity-Based Pruning (4 min)**
+- Algorithm 13: Stop when best is good enough
+- Visual: Anchor heap with equity thresholds
+- Show heap extraction stopping mid-process
+- Lesson: "Perfection is the enemy of good enough"
 
-**Visual Elements**:
-- Animated GADDAG traversal
-- Show bidirectional word representation
-- Node structure breakdown
+**Part 4: Leave Values (5 min)**
+- Algorithm 14: Static leave evaluation (KLV)
+- Visual: Rack tiles color-coded by synergy
+- Show score vs equity rankings diverging
+- Real example: "Playing QU together vs separately"
+- Lesson: "Think beyond the current move"
 
-**Lesson**: "The right data structure changes everything"
+**Part 5: Move Recording Strategies (3 min)**
+- Algorithm 15: Best-move-found termination
+- Quick comparison of MOVE_RECORD_ALL vs MOVE_RECORD_BEST
+- Lesson: "Know when you're done"
 
----
-
-### Arc 3: Advanced Optimizations (Videos 7-10)
-
-#### Video 7: "Shadow Playing - Highest Possible Score"
-**Algorithm**: Shadow/super-leave pre-computation
-**Key Metrics**:
-- Prunes 50%+ of anchors before full generation
-- Avoids work when best move is already better
-
-**Visual Elements**:
-- Ghost tiles showing maximum possible score
-- Anchor pruning animation
-- Comparison counter: anchors explored vs skipped
-
-**Lesson**: "A good estimate beats perfect precision"
+**Cumulative Result**: 50ms → ~5ms (10x faster, production-ready)
 
 ---
 
-#### Video 8: "Leave Values - Planning Ahead"
-**Algorithm**: Static leave evaluation (KLV)
-**Key Metrics**:
-- Adjusts move scores by -5 to +5 points
-- Dramatically changes move ordering
+### Video 4 (Optional): "Endgame Mastery" (12-15 min)
+**Covers Algorithms 16-18** (Endgame Optimizations)
 
-**Visual Elements**:
-- Rack tiles color-coded by leave value
-- Side-by-side: score vs equity rankings
-- Before/after move order comparison
+**When to create**: If audience engagement is high, make this a deep dive
 
-**Lesson**: "Your tiles matter as much as your points"
+**Part 1: The Endgame Problem (3 min)**
+- Board is 60%+ filled, combinatorial explosion
+- Standard generation struggles with density
+- Setup: Why we need a different approach
 
----
+**Part 2: Word Maps (5 min)**
+- Algorithm 16-17: Hash-based late-game lookup
+- Visual: Board density threshold triggering WMP
+- Show hash construction and lookup
+- Metric: 10-100x speedup for dense boards
 
-#### Video 9: "Word Maps - Endgame Acceleration"
-**Algorithm**: WMP (word map) late-game optimization
-**Key Metrics**:
-- 10-100x speedup when board is 60%+ filled
-- Hash-based word lookup
+**Part 3: Exhaustive Solving (4 min)**
+- Algorithm 18: Perfect endgame play
+- When possible, when practical
+- Visual: Minimax tree for final 2-4 tiles
 
-**Visual Elements**:
-- Board density threshold visualization
-- WMP activation trigger
-- Speedup graph over game progress
-
-**Lesson**: "Adapt your strategy to the situation"
+**Lesson**: "Different problems need different tools"
 
 ---
 
-#### Video 10: "Putting It All Together - State of the Art"
-**Algorithm**: Full MAGPIE move generation pipeline
-**Key Metrics**:
-- From 5+ minutes to 5 milliseconds
-- 60,000x speedup overall
+### Video 5 (Optional): "The Complete Picture" (18-20 min)
+**Recap + Deep Dives + Real Examples**
 
-**Visual Elements**:
-- Replay first video's example with all optimizations
-- Show each optimization activating in sequence
-- Final performance comparison table
+**When to create**: Series finale after Videos 1-3 (or 1-4)
 
-**Lesson**: "Great performance comes from many small wins"
+**Part 1: The Journey (5 min)**
+- Montage: 5 minutes → 5 milliseconds
+- Show cumulative speedup graph
+- Algorithm activation sequence on single example
+
+**Part 2: Real Game Example (8 min)**
+- Play through actual game position
+- Show each optimization activating
+- Pause to explain "why this fired now"
+- Live comparison: naive vs optimized side-by-side
+
+**Part 3: Implementation Reality (5 min)**
+- Discuss MAGPIE codebase
+- Show actual KWG/KLV file formats
+- Memory usage, initialization time
+- Engineering tradeoffs
+
+**Lesson**: "Great systems are built from great parts"
 
 ---
 
@@ -222,16 +248,18 @@ Create a series of 10-20 educational YouTube videos demonstrating the evolution 
 
 ### Phase 4: Video Production (Ongoing)
 
-**Cadence**: 1 video every 2-3 weeks
-**Order**: Follow Arc 1 → Arc 2 → Arc 3 sequence
+**Cadence**: 1 video every 6-8 weeks (given 15-25 min length with multiple algorithms)
+**Order**: Videos 1 → 2 → 3, then decide on 4-5 based on audience response
 
-**Per-Video Workflow**:
-1. **Script** (2-3 days): Write narration, plan visuals
-2. **Capture traces** (1 day): Generate JSONL with appropriate positions
-3. **Implement visualizations** (5-7 days): Manim scenes specific to this video
-4. **Record narration** (1 day): High-quality audio
-5. **Edit and render** (2-3 days): Final Cut Pro / DaVinci Resolve
+**Per-Video Workflow** (for 15-25 min video covering 4-7 algorithms):
+1. **Script** (1 week): Write narration for all parts, plan visual flow
+2. **Capture traces** (2-3 days): Generate JSONL for each algorithm demo
+3. **Implement visualizations** (2-3 weeks): Manim scenes for 4-7 different algorithms
+4. **Record narration** (2-3 days): High-quality audio, multiple takes
+5. **Edit and render** (1 week): Assemble parts, transitions, Final Cut Pro
 6. **Publish** (1 day): Upload, thumbnail, description, community post
+
+**Estimated total per video**: 5-7 weeks of work
 
 ---
 
@@ -294,9 +322,9 @@ Create a series of 10-20 educational YouTube videos demonstrating the evolution 
 - 📊 Code examples are minimal but illustrative
 
 ### Production
-- 📊 10-20 videos completed
-- 📊 Consistent quality across series
-- 📊 Clear progression of complexity
+- 📊 3-5 core videos completed
+- 📊 Consistent quality and pacing (15-25 min each)
+- 📊 Clear progression: simple → complex
 - 📊 Re-usable visualization components
 
 ---
@@ -319,16 +347,16 @@ Create a series of 10-20 educational YouTube videos demonstrating the evolution 
 
 ## Milestones
 
-- [x] **M0**: Naive move generation working (Nov 2024)
-- [x] **M1**: Binary search validation working (Nov 2024)
-- [x] **M2**: Word lookup tracing complete (Dec 2024)
-- [ ] **M3**: Move generation tracing complete (Jan 2025)
-- [ ] **M4**: Python parser and Manim basics (Feb 2025)
-- [ ] **M5**: First video published (Mar 2025)
-- [ ] **M6**: Arc 1 complete (Videos 1-3) (May 2025)
-- [ ] **M7**: Arc 2 complete (Videos 4-6) (Aug 2025)
-- [ ] **M8**: Arc 3 complete (Videos 7-10) (Dec 2025)
-- [ ] **M9**: Full series published (Jan 2026)
+- [x] **M0**: Naive move generation working (Oct 2025)
+- [x] **M1**: Binary search validation working (Oct 2025)
+- [x] **M2**: Word lookup tracing complete (Oct 2025)
+- [ ] **M3**: Move generation tracing complete (Nov 2025)
+- [ ] **M4**: Python parser and Manim basics (Dec 2025)
+- [ ] **M5**: Video 1 published - "Brute Force to Structure" (Jan 2026)
+- [ ] **M6**: Video 2 published - "The GADDAG Revolution" (Feb 2026)
+- [ ] **M7**: Video 3 published - "Advanced Pruning" (Mar 2026)
+- [ ] **M8**: Optional Videos 4-5 (audience-dependent) (Apr-May 2026)
+- [ ] **M9**: Core series complete (May 2026)
 
 ---
 
