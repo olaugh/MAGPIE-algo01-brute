@@ -188,8 +188,8 @@ bool dictionary_word_list_contains_word_linear_search(
 
   for (int i = 0; i < dictionary_word_list->count; i++) {
     comparisons++;
-    int cmp_result =
-        dictionary_word_compare(&dictionary_word_list->dictionary_words[i], word);
+    int cmp_result = dictionary_word_compare(
+        &dictionary_word_list->dictionary_words[i], word);
 
     // Trace: log each comparison
     if (trace_word_lookup_enabled()) {

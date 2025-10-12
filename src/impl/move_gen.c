@@ -970,7 +970,8 @@ void exhaustive_gen_recursive(MoveGen *gen, const Anchor *anchor, int start_col,
               word_so_far[i] = *ld_ml_to_hl(
                   &gen->ld, gen_cache_get_letter(gen, start_col + i));
             } else {
-              word_so_far[i] = *ld_ml_to_hl(&gen->ld, gen->playthrough_marked[i]);
+              word_so_far[i] =
+                  *ld_ml_to_hl(&gen->ld, gen->playthrough_marked[i]);
             }
           }
           word_so_far[pos + 1] = '\0';

@@ -207,14 +207,33 @@ python3 find_circ_deps.py  # Check for circular dependencies
 
 ### Code Formatting
 
-**Important**: Before pushing to remote, format all code with clang-format-20:
+**Important**: Before committing code, always check and fix formatting with clang-format-20:
 
 ```bash
 python3 format.py     # Check formatting issues
 clang-format-20 -i <file>  # Format specific file in-place
 ```
 
-The project uses clang-format-20 for consistent code style. All code must be formatted before pushing to pass CI checks.
+The project uses clang-format-20 for consistent code style. All code must be formatted before committing to pass CI checks.
+
+**Best Practice for Claude Code**: After writing or modifying C code, run `python3 format.py` to check for formatting issues. Common formatting issues include:
+- Line length violations (>80 characters)
+- Function parameter alignment
+- Binary operator placement (operators at end of line vs beginning)
+- Indentation of continued expressions
+
+If `format.py` shows differences, apply the formatting changes immediately before committing. This prevents CI failures and reduces noise in pull requests.
+
+**Tip**: Look for patterns like:
+```c
+// Often needs reformatting:
+int result = some_long_function_name(argument1, argument2,
+    argument3);  // Wrong alignment
+
+// Correct after clang-format:
+int result =
+    some_long_function_name(argument1, argument2, argument3);
+```
 
 ### CI Pipeline
 
