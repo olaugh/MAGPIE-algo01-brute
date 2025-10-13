@@ -165,6 +165,20 @@ def get_bonus_color(row: int, col: int) -> Tuple[int, int, int]:
     return THEME['EMPTY_SQUARE']
 
 
+def get_bonus_label(row: int, col: int) -> Optional[str]:
+    """Get label text for bonus square at position (TW, DW, TL, DL)."""
+    pos = (row, col)
+    if pos in BONUS_SQUARES['TWS']:
+        return 'TW'
+    if pos in BONUS_SQUARES['DWS'] or pos == (7, 7):
+        return 'DW'
+    if pos in BONUS_SQUARES['TLS']:
+        return 'TL'
+    if pos in BONUS_SQUARES['DLS']:
+        return 'DL'
+    return None
+
+
 def round_corners_with_paint(draw: ImageDraw.Draw, bbox: Tuple[int, int, int, int],
                             radius: int, bg_color: Tuple[int, int, int]):
     """
@@ -331,7 +345,7 @@ def apply_gradient_rgb(img: Image.Image, bbox: Tuple[int, int, int, int],
 
 
 def render_board(scale: int = 4, board: Optional[List[List[Optional[str]]]] = None,
-                 show_labels: bool = False) -> Image.Image:
+                 show_labels: bool = False, premium_font: ImageFont.ImageFont = None) -> Image.Image:
     """
     Render Scrabble board and tiles at specified scale.
 
@@ -398,6 +412,16 @@ def render_board(scale: int = 4, board: Optional[List[List[Optional[str]]]] = No
             # This MUST be last so corners are clean
             round_corners_with_paint(draw, (x, y, x + tile_size, y + tile_size),
                                     corner_radius, THEME['BACKGROUND'])
+
+            # Draw premium square labels (TW, DW, TL, DL) on empty squares
+            if not (board and board[row][col]):
+                bonus_label = get_bonus_label(row, col)
+                if bonus_label and premium_font:
+                    # Center the text in the gradient region
+                    text_x = grad_x + gradient_size // 2
+                    text_y = grad_y + gradient_size // 2
+                    draw.text((text_x, text_y), bonus_label, fill=(255, 255, 255),
+                             font=premium_font, anchor='mm')
 
     return img
 
@@ -533,8 +557,16 @@ def render_position(cgp_string: str, output_path: str, supersample: int = 1, sho
 
     board = parse_cgp_board(parts[1])
 
+    # Load font for premium square labels first (need before rendering board)
+    import os
+    font_dir = os.path.join(os.path.dirname(__file__), 'fonts')
+    try:
+        premium_font = ImageFont.truetype(os.path.join(font_dir, 'Roboto-Bold.ttf'), int(14 * supersample))
+    except:
+        premium_font = ImageFont.load_default()
+
     # Render at high resolution (pass board and show_labels so we use correct margins)
-    img = render_board(scale=supersample, board=board, show_labels=show_labels)
+    img = render_board(scale=supersample, board=board, show_labels=show_labels, premium_font=premium_font)
     draw = ImageDraw.Draw(img)
 
     # Calculate margins for tile drawing (must match render_board)
