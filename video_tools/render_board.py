@@ -54,11 +54,17 @@ GRADIENT_FRACTION = 0.98
 # Text positioning
 LETTER_OFFSET_UP = 0.05
 BLANK_SIZE_FRACTION = 0.6667
-POINT_SIZE_1_DIGIT = 0.3192  # 0.42 * 0.8 * 0.95 (20% + 5% reduction)
-POINT_SIZE_2_DIGIT = 0.266   # 0.35 * 0.8 * 0.95 (20% + 5% reduction)
-POINT_H_OFFSET_1_DIGIT = 0.88  # Single digit scores pushed further right
-POINT_H_OFFSET_2_DIGIT = 0.82  # Two digit scores (same as before)
-POINT_V_OFFSET = 0.80
+POINT_SIZE_1_DIGIT = 0.3192  # 0.42 * 0.8 * 0.95 (20% + 5% reduction) - kept as is
+POINT_SIZE_2_DIGIT = 0.2452  # 0.35 * 0.8 * 0.95 * 0.96 * 0.96 (20% + 5% + 4% + 4% reduction)
+
+# Point value positioning (as fraction of gradient_size, then pixel adjustments)
+POINT_H_OFFSET_1_DIGIT = 0.88  # Single digit horizontal base
+POINT_H_OFFSET_2_DIGIT = 0.82  # Two digit horizontal base
+POINT_V_OFFSET = 0.80          # Vertical base
+
+# Pixel adjustments (at 1x scale)
+POINT_ADJUST_1_DIGIT = (-2, -2)  # (x, y) adjustment for 1-digit scores
+POINT_ADJUST_2_DIGIT = (1, -1)   # (x, y) adjustment for 2-digit scores
 
 # Bonus square layout
 BONUS_SQUARES = {
@@ -421,11 +427,29 @@ def draw_tile(img: Image.Image, draw: ImageDraw.Draw, letter: str,
     round_corners_with_paint(draw, (x, y, x + tile_size, y + tile_size),
                             corner_radius, THEME['BACKGROUND'])
 
+    # Draw semi-transparent black border around tile (1.5 pixels, 50% opacity)
+    # Position slightly outward to give more space to score text
+    border_width = int(1.5 * scale)
+    border_inset = -1 * scale  # Negative to expand outward
+
+    # Create semi-transparent overlay for border
+    border_img = Image.new('RGBA', (tile_size + 2 * abs(border_inset), tile_size + 2 * abs(border_inset)), (0, 0, 0, 0))
+    border_draw = ImageDraw.Draw(border_img)
+    border_draw.rounded_rectangle(
+        [(0, 0), (border_img.width - 1, border_img.height - 1)],
+        radius=corner_radius,
+        outline=(0, 0, 0, 128),  # 50% opacity
+        width=border_width
+    )
+
+    # Paste border onto main image
+    img.paste(border_img, (x + border_inset, y + border_inset), border_img)
+
     # Letter
     if is_blank:
         letter_size = int(gradient_size * BLANK_SIZE_FRACTION)
     else:
-        letter_size = int(gradient_size * 0.7249)  # 0.95 * 0.9 * 0.92 * 0.96 * 0.96 (10% + 8% + 4% + 4% reduction)
+        letter_size = int(gradient_size * 0.7145)  # 0.95 * 0.9 * 0.92 * 0.96 * 0.96 * 0.985 (10% + 8% + 4% + 4% + 1.5% reduction)
 
     try:
         font_sized = ImageFont.truetype(font_letter.path, letter_size)
@@ -460,9 +484,15 @@ def draw_tile(img: Image.Image, draw: ImageDraw.Draw, letter: str,
             font_val_sized = font_value
 
         # Use different horizontal offset for 1-digit vs 2-digit scores
+        # Apply pixel adjustments from constants
         h_offset = POINT_H_OFFSET_1_DIGIT if len(value) == 1 else POINT_H_OFFSET_2_DIGIT
         val_x = grad_x + int(h_offset * gradient_size)
         val_y = grad_y + int(POINT_V_OFFSET * gradient_size)
+
+        # Apply pixel adjustments: 1-digit: (-2, -2), 2-digit: (+1, -1)
+        adjust_x, adjust_y = POINT_ADJUST_1_DIGIT if len(value) == 1 else POINT_ADJUST_2_DIGIT
+        val_x += adjust_x * scale
+        val_y += adjust_y * scale
 
         draw.text((val_x, val_y), value, fill=THEME['LETTER'], font=font_val_sized, anchor='mm')
 
