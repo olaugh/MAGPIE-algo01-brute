@@ -330,22 +330,34 @@ def apply_gradient_rgb(img: Image.Image, bbox: Tuple[int, int, int, int],
                 pixels[px, py] = (r, g, b)
 
 
-def render_board(scale: int = 4, board: Optional[List[List[Optional[str]]]] = None) -> Image.Image:
+def render_board(scale: int = 4, board: Optional[List[List[Optional[str]]]] = None,
+                 show_labels: bool = False) -> Image.Image:
     """
     Render Scrabble board and tiles at specified scale.
 
     Args:
         scale: Render scale multiplier (4 = 4x supersampling for antialiasing)
+        board: Optional board state (used to skip drawing empty squares under tiles)
+        show_labels: If True, use asymmetric margins (larger top/left for labels)
 
     Returns:
         PIL Image with board and tiles
     """
     square_size = BASE_SQUARE_SIZE * scale
     board_size = BASE_BOARD_SIZE * scale
-    margin = 40 * scale
 
-    img_width = board_size + 2 * margin
-    img_height = board_size + 2 * margin
+    # Use asymmetric margins when labels are shown
+    if show_labels:
+        margin_top = 40 * scale
+        margin_left = 40 * scale
+        margin_bottom = 15 * scale  # Tighter on bottom (no labels)
+        margin_right = 15 * scale   # Tighter on right (no labels)
+    else:
+        # Symmetric margins when no labels
+        margin_top = margin_left = margin_bottom = margin_right = 40 * scale
+
+    img_width = board_size + margin_left + margin_right
+    img_height = board_size + margin_top + margin_bottom
 
     # Create RGB image directly (no alpha channel = no anti-aliasing blending)
     img = Image.new('RGB', (img_width, img_height), THEME['BACKGROUND'])
@@ -360,8 +372,8 @@ def render_board(scale: int = 4, board: Optional[List[List[Optional[str]]]] = No
 
     for row in range(BOARD_DIM):
         for col in range(BOARD_DIM):
-            x = margin + col * square_size + tile_margin
-            y = margin + row * square_size + tile_margin
+            x = margin_left + col * square_size + tile_margin
+            y = margin_top + row * square_size + tile_margin
 
             # Skip drawing colored square if there's a tile here (tile will be drawn on top)
             # BUT still draw the background shape
@@ -392,10 +404,14 @@ def render_board(scale: int = 4, board: Optional[List[List[Optional[str]]]] = No
 
 def draw_tile(img: Image.Image, draw: ImageDraw.Draw, letter: str,
              row: int, col: int, scale: int,
-             font_letter: ImageFont.ImageFont, font_value: ImageFont.ImageFont):
+             font_letter: ImageFont.ImageFont, font_value: ImageFont.ImageFont,
+             margin_left: int = None, margin_top: int = None):
     """Draw a single tile on the board."""
     square_size = BASE_SQUARE_SIZE * scale
-    margin = 40 * scale
+    if margin_left is None:
+        margin_left = 40 * scale
+    if margin_top is None:
+        margin_top = 40 * scale
 
     # Tile sizing
     tile_size = int(square_size * TILE_FRACTION)
@@ -406,8 +422,8 @@ def draw_tile(img: Image.Image, draw: ImageDraw.Draw, letter: str,
     gradient_size = int(tile_size * GRADIENT_FRACTION)
     gradient_offset = (tile_size - gradient_size) // 2
 
-    x = margin + col * square_size + tile_margin
-    y = margin + row * square_size + tile_margin
+    x = margin_left + col * square_size + tile_margin
+    y = margin_top + row * square_size + tile_margin
 
     is_blank = letter.islower()
     display_letter = letter.upper()
@@ -517,9 +533,17 @@ def render_position(cgp_string: str, output_path: str, supersample: int = 1, sho
 
     board = parse_cgp_board(parts[1])
 
-    # Render at high resolution (pass board so we don't draw squares under tiles)
-    img = render_board(scale=supersample, board=board)
+    # Render at high resolution (pass board and show_labels so we use correct margins)
+    img = render_board(scale=supersample, board=board, show_labels=show_labels)
     draw = ImageDraw.Draw(img)
+
+    # Calculate margins for tile drawing (must match render_board)
+    if show_labels:
+        margin_left = 40 * supersample
+        margin_top = 40 * supersample
+    else:
+        margin_left = 40 * supersample
+        margin_top = 40 * supersample
 
     # Load fonts (ClearSans-Bold for letters, Roboto-Bold for point values)
     import os
@@ -542,13 +566,13 @@ def render_position(cgp_string: str, output_path: str, supersample: int = 1, sho
     for row in range(BOARD_DIM):
         for col in range(BOARD_DIM):
             if board[row][col]:
-                draw_tile(img, draw, board[row][col], row, col, supersample, font_letter, font_value)
+                draw_tile(img, draw, board[row][col], row, col, supersample, font_letter, font_value,
+                         margin_left, margin_top)
 
     # Draw labels if requested
     if show_labels:
         square_size = BASE_SQUARE_SIZE * supersample
-        margin = 40 * supersample
-        label_offset = int(margin * 0.75)  # Further away (was margin // 2 = 0.5)
+        label_offset = int(margin_top * 0.75)  # Column labels
         # Make labels darker - blend empty square color 60% with black
         empty_r, empty_g, empty_b = THEME['EMPTY_SQUARE']
         label_color = (int(empty_r * 0.6), int(empty_g * 0.6), int(empty_b * 0.6))
@@ -562,22 +586,27 @@ def render_position(cgp_string: str, output_path: str, supersample: int = 1, sho
         # Column labels (A-O) at top only
         for col in range(BOARD_DIM):
             label = chr(ord('A') + col)
-            x = margin + col * square_size + square_size // 2
+            x = margin_left + col * square_size + square_size // 2
             draw.text((x, label_offset), label, fill=label_color, font=label_font, anchor='mm')
 
         # Row labels (1-15) at left only
         # Use right-aligned anchor so two-digit numbers have same right edge as one-digit
         # Use larger offset to move them further from the board
-        row_label_offset = int(margin * 0.9)  # Further than 0.75 for columns
+        row_label_offset = int(margin_left * 0.9)  # Further than 0.75 for columns
         for row in range(BOARD_DIM):
             label = str(row + 1)
-            y = margin + row * square_size + square_size // 2
+            y = margin_top + row * square_size + square_size // 2
             draw.text((row_label_offset, y), label, fill=label_color, font=label_font, anchor='rm')
 
     # Downsample for antialiasing (img is already RGB)
     # Use NEAREST or BOX to avoid creating gray halos during downsampling
-    final_size = BASE_BOARD_SIZE + 80  # 40px margin each side
-    final_img = img.resize((final_size, final_size), Image.BOX)
+    if show_labels:
+        final_width = BASE_BOARD_SIZE + 40 + 15  # 40px left + 15px right
+        final_height = BASE_BOARD_SIZE + 40 + 15  # 40px top + 15px bottom
+    else:
+        final_width = BASE_BOARD_SIZE + 80  # 40px each side
+        final_height = BASE_BOARD_SIZE + 80
+    final_img = img.resize((final_width, final_height), Image.BOX)
 
     # If video mode, compose centered in 1920x1080 frame
     if video_mode:
@@ -586,14 +615,14 @@ def render_position(cgp_string: str, output_path: str, supersample: int = 1, sho
         video_frame = Image.new('RGB', (video_width, video_height), video_bg)
 
         # Center the board horizontally and vertically
-        x_offset = (video_width - final_size) // 2
-        y_offset = (video_height - final_size) // 2
+        x_offset = (video_width - final_width) // 2
+        y_offset = (video_height - final_height) // 2
 
         video_frame.paste(final_img, (x_offset, y_offset))
         final_img = video_frame
-        print(f"Rendered {img.size[0]}×{img.size[1]}px → {final_size}×{final_size}px → {video_width}×{video_height}px (video mode, {supersample}x supersampling)")
+        print(f"Rendered {img.size[0]}×{img.size[1]}px → {final_width}×{final_height}px → {video_width}×{video_height}px (video mode, {supersample}x supersampling)")
     else:
-        print(f"Rendered {img.size[0]}×{img.size[1]}px → {final_size}×{final_size}px ({supersample}x supersampling)")
+        print(f"Rendered {img.size[0]}×{img.size[1]}px → {final_width}×{final_height}px ({supersample}x supersampling)")
 
     # Save
     final_img.save(output_path)
