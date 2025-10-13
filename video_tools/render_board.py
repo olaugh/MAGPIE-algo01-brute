@@ -6,6 +6,7 @@ Usage:
     python3 render_board.py "cgp_string" output.png
     python3 render_board.py --file position.cgp output.png
     python3 render_board.py --theme light-theme "cgp_string" output.png
+    python3 render_board.py --supersample 4 "cgp_string" output.png
 """
 
 import sys
@@ -36,6 +37,8 @@ THEME = {
     'TILE': GOLDEN,
     'LETTER': LETTER_COLOR,
     'BLANK_OUTLINE': DARKRED,
+    'GRADIENT_EMPTY': 0.04,  # Concave gradient opacity for empty squares
+    'GRADIENT_TILE': 0.18,   # Convex gradient opacity for tiles
 }
 
 # Board layout
@@ -44,16 +47,17 @@ BASE_SQUARE_SIZE = 63  # At 1x scale
 BASE_BOARD_SIZE = BOARD_DIM * BASE_SQUARE_SIZE
 
 # Tile sizing (from raylib prototype)
-TILE_FRACTION = 0.85
+TILE_FRACTION = 0.88  # Increased from 0.85 to reduce grid spacing by 20%
 CORNER_RADIUS_FRACTION = 0.25
 GRADIENT_FRACTION = 0.98
 
 # Text positioning
 LETTER_OFFSET_UP = 0.05
 BLANK_SIZE_FRACTION = 0.6667
-POINT_SIZE_1_DIGIT = 0.42
-POINT_SIZE_2_DIGIT = 0.35
-POINT_H_OFFSET = 0.87
+POINT_SIZE_1_DIGIT = 0.3192  # 0.42 * 0.8 * 0.95 (20% + 5% reduction)
+POINT_SIZE_2_DIGIT = 0.266   # 0.35 * 0.8 * 0.95 (20% + 5% reduction)
+POINT_H_OFFSET_1_DIGIT = 0.88  # Single digit scores pushed further right
+POINT_H_OFFSET_2_DIGIT = 0.82  # Two digit scores (same as before)
 POINT_V_OFFSET = 0.80
 
 # Bonus square layout
@@ -104,13 +108,18 @@ def load_theme(theme_name: str) -> None:
                 key = key.strip()
                 value = value.strip()
 
-                # Parse RGB values
+                # Parse values - could be RGB tuple or single float
                 try:
-                    rgb = tuple(int(x.strip()) for x in value.split(','))
-                    if len(rgb) == 3:
-                        THEME[key] = rgb
+                    if ',' in value:
+                        # RGB color tuple
+                        rgb = tuple(int(x.strip()) for x in value.split(','))
+                        if len(rgb) == 3:
+                            THEME[key] = rgb
+                    else:
+                        # Single float value (for gradients)
+                        THEME[key] = float(value.strip())
                 except ValueError:
-                    print(f"Warning: Invalid color value for {key}: {value}", file=sys.stderr)
+                    print(f"Warning: Invalid value for {key}: {value}", file=sys.stderr)
 
 
 def parse_cgp_board(board_string: str) -> List[List[Optional[str]]]:
@@ -281,8 +290,9 @@ def apply_gradient_rgb(img: Image.Image, bbox: Tuple[int, int, int, int],
     """
     Apply gradient overlay for depth effect (RGB version - manual blending).
 
-    is_tile=True: Convex (white top → black bottom at 18% opacity) for raised tiles
-    is_tile=False: Concave (black top → white at bottom at 4% opacity) for inset squares
+    is_tile=True: Convex (white top → black bottom) for raised tiles
+    is_tile=False: Concave (black top → white bottom) for inset squares
+    Opacity values come from THEME['GRADIENT_TILE'] or THEME['GRADIENT_EMPTY']
     """
     x1, y1, x2, y2 = bbox
     width = x2 - x1
@@ -291,7 +301,7 @@ def apply_gradient_rgb(img: Image.Image, bbox: Tuple[int, int, int, int],
     # Load pixel data for direct manipulation
     pixels = img.load()
 
-    opacity = 0.18 if is_tile else 0.04
+    opacity = THEME['GRADIENT_TILE'] if is_tile else THEME['GRADIENT_EMPTY']
 
     for y in range(height):
         ratio = y / height
@@ -415,7 +425,7 @@ def draw_tile(img: Image.Image, draw: ImageDraw.Draw, letter: str,
     if is_blank:
         letter_size = int(gradient_size * BLANK_SIZE_FRACTION)
     else:
-        letter_size = int(gradient_size * 0.95)
+        letter_size = int(gradient_size * 0.7249)  # 0.95 * 0.9 * 0.92 * 0.96 * 0.96 (10% + 8% + 4% + 4% reduction)
 
     try:
         font_sized = ImageFont.truetype(font_letter.path, letter_size)
@@ -434,9 +444,10 @@ def draw_tile(img: Image.Image, draw: ImageDraw.Draw, letter: str,
         blank_size = int(gradient_size * BLANK_SIZE_FRACTION)
         blank_x = grad_x + blank_offset
         blank_y = grad_y + blank_offset
-        blank_radius = int(blank_size * 0.15)
+        blank_radius = int(blank_size * 0.25)  # Increased from 0.15 to 0.25 for more rounding
+        blank_width = 2 * scale  # 2 pixels at 1x scale
         draw_rounded_rect(draw, (blank_x, blank_y, blank_x + blank_size, blank_y + blank_size),
-                         blank_radius, None, THEME['BLANK_OUTLINE'], max(2, scale // 2))
+                         blank_radius, None, THEME['BLANK_OUTLINE'], blank_width)
 
     # Point value
     elif display_letter in LETTER_VALUES:
@@ -448,20 +459,23 @@ def draw_tile(img: Image.Image, draw: ImageDraw.Draw, letter: str,
         except:
             font_val_sized = font_value
 
-        val_x = grad_x + int(POINT_H_OFFSET * gradient_size)
+        # Use different horizontal offset for 1-digit vs 2-digit scores
+        h_offset = POINT_H_OFFSET_1_DIGIT if len(value) == 1 else POINT_H_OFFSET_2_DIGIT
+        val_x = grad_x + int(h_offset * gradient_size)
         val_y = grad_y + int(POINT_V_OFFSET * gradient_size)
 
         draw.text((val_x, val_y), value, fill=THEME['LETTER'], font=font_val_sized, anchor='mm')
 
 
-def render_position(cgp_string: str, output_path: str, supersample: int = 4):
+def render_position(cgp_string: str, output_path: str, supersample: int = 1, show_labels: bool = False):
     """
     Render CGP position to PNG with antialiasing.
 
     Args:
         cgp_string: CGP format string
         output_path: Output PNG file path
-        supersample: Render at Nx resolution then downsample (default: 4)
+        supersample: Render at Nx resolution then downsample (default: 1, use 4 for final quality)
+        show_labels: Show column (A-O) and row (1-15) labels around the board
     """
     # Parse CGP
     parts = cgp_string.strip().split()
@@ -496,6 +510,36 @@ def render_position(cgp_string: str, output_path: str, supersample: int = 4):
         for col in range(BOARD_DIM):
             if board[row][col]:
                 draw_tile(img, draw, board[row][col], row, col, supersample, font_letter, font_value)
+
+    # Draw labels if requested
+    if show_labels:
+        square_size = BASE_SQUARE_SIZE * supersample
+        margin = 40 * supersample
+        label_offset = int(margin * 0.75)  # Further away (was margin // 2 = 0.5)
+        # Make labels darker - blend empty square color 60% with black
+        empty_r, empty_g, empty_b = THEME['EMPTY_SQUARE']
+        label_color = (int(empty_r * 0.6), int(empty_g * 0.6), int(empty_b * 0.6))
+
+        # Load font for labels
+        try:
+            label_font = ImageFont.truetype(os.path.join(font_dir, 'Roboto-Bold.ttf'), int(20 * supersample))
+        except:
+            label_font = ImageFont.load_default()
+
+        # Column labels (A-O) at top only
+        for col in range(BOARD_DIM):
+            label = chr(ord('A') + col)
+            x = margin + col * square_size + square_size // 2
+            draw.text((x, label_offset), label, fill=label_color, font=label_font, anchor='mm')
+
+        # Row labels (1-15) at left only
+        # Use right-aligned anchor so two-digit numbers have same right edge as one-digit
+        # Use larger offset to move them further from the board
+        row_label_offset = int(margin * 0.9)  # Further than 0.75 for columns
+        for row in range(BOARD_DIM):
+            label = str(row + 1)
+            y = margin + row * square_size + square_size // 2
+            draw.text((row_label_offset, y), label, fill=label_color, font=label_font, anchor='rm')
 
     # Downsample for antialiasing (img is already RGB)
     # Use NEAREST or BOX to avoid creating gray halos during downsampling
@@ -594,15 +638,19 @@ def render_debug_squares(output_path: str, supersample: int = 4):
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python3 render_board.py [--theme THEME] <cgp_string> <output.png>")
-        print("   or: python3 render_board.py [--theme THEME] --file <position.cgp> <output.png>")
+        print("Usage: python3 render_board.py [--theme THEME] [--supersample N] [--labels] <cgp_string> <output.png>")
+        print("   or: python3 render_board.py [--theme THEME] [--supersample N] [--labels] --file <position.cgp> <output.png>")
         print("   or: python3 render_board.py --debug <output.png>")
         print("\nAvailable themes: dark-theme (default), light-theme")
+        print("Supersample: 1 (default, fast), 4 (high quality)")
+        print("--labels: Show row/column labels (A-O, 1-15)")
         sys.exit(1)
 
     # Parse arguments
     args = sys.argv[1:]
     theme_name = None
+    supersample = 1
+    show_labels = False
 
     # Check for --theme flag
     if '--theme' in args:
@@ -614,6 +662,25 @@ def main():
         # Remove --theme and its argument
         args = args[:theme_idx] + args[theme_idx + 2:]
 
+    # Check for --supersample flag
+    if '--supersample' in args:
+        ss_idx = args.index('--supersample')
+        if ss_idx + 1 >= len(args):
+            print("Error: --supersample requires a value", file=sys.stderr)
+            sys.exit(1)
+        try:
+            supersample = int(args[ss_idx + 1])
+        except ValueError:
+            print("Error: --supersample value must be an integer", file=sys.stderr)
+            sys.exit(1)
+        # Remove --supersample and its argument
+        args = args[:ss_idx] + args[ss_idx + 2:]
+
+    # Check for --labels flag
+    if '--labels' in args:
+        show_labels = True
+        args.remove('--labels')
+
     # Load theme if specified
     if theme_name:
         load_theme(theme_name)
@@ -624,7 +691,7 @@ def main():
 
     if args[0] == '--debug':
         output_path = args[1] if len(args) > 1 else 'debug_squares.png'
-        render_debug_squares(output_path)
+        render_debug_squares(output_path, supersample)
     elif args[0] == '--file':
         if len(args) < 3:
             print("Error: --file requires input and output file", file=sys.stderr)
@@ -632,14 +699,14 @@ def main():
         with open(args[1], 'r') as f:
             cgp_string = f.read().strip()
         output_path = args[2]
-        render_position(cgp_string, output_path)
+        render_position(cgp_string, output_path, supersample, show_labels)
     else:
         if len(args) < 2:
             print("Error: Missing output file", file=sys.stderr)
             sys.exit(1)
         cgp_string = args[0]
         output_path = args[1]
-        render_position(cgp_string, output_path)
+        render_position(cgp_string, output_path, supersample, show_labels)
 
 
 if __name__ == '__main__':
