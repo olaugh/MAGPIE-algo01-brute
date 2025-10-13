@@ -417,19 +417,11 @@ def render_board(scale: int = 4, board: Optional[List[List[Optional[str]]]] = No
             if not (board and board[row][col]):
                 bonus_label = get_bonus_label(row, col)
                 if bonus_label and premium_font:
-                    # Create RGBA overlay for 90% opacity text
-                    text_overlay = Image.new('RGBA', img.size, (0, 0, 0, 0))
-                    text_draw = ImageDraw.Draw(text_overlay)
-
                     # Center the text in the gradient region
                     text_x = grad_x + gradient_size // 2
                     text_y = grad_y + gradient_size // 2
-                    # White text at 90% opacity (255 * 0.9 = 229.5)
-                    text_draw.text((text_x, text_y), bonus_label, fill=(255, 255, 255, 230),
-                                  font=premium_font, anchor='mm')
-
-                    # Composite the text overlay onto the main image
-                    img = Image.alpha_composite(img.convert('RGBA'), text_overlay).convert('RGB')
+                    draw.text((text_x, text_y), bonus_label, fill=(255, 255, 255),
+                             font=premium_font, anchor='mm')
 
     return img
 
