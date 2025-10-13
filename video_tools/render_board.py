@@ -166,16 +166,16 @@ def get_bonus_color(row: int, col: int) -> Tuple[int, int, int]:
 
 
 def get_bonus_label(row: int, col: int) -> Optional[str]:
-    """Get label text for bonus square at position (TW, DW, TL, DL)."""
+    """Get label text for bonus square at position (3W, 2W, 3L, 2L)."""
     pos = (row, col)
     if pos in BONUS_SQUARES['TWS']:
-        return 'TW'
+        return '3W'
     if pos in BONUS_SQUARES['DWS'] or pos == (7, 7):
-        return 'DW'
+        return '2W'
     if pos in BONUS_SQUARES['TLS']:
-        return 'TL'
+        return '3L'
     if pos in BONUS_SQUARES['DLS']:
-        return 'DL'
+        return '2L'
     return None
 
 
