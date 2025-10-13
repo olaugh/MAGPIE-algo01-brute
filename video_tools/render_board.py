@@ -348,10 +348,10 @@ def render_board(scale: int = 4, board: Optional[List[List[Optional[str]]]] = No
 
     # Use asymmetric margins when labels are shown
     if show_labels:
-        margin_top = 40 * scale
-        margin_left = 40 * scale
-        margin_bottom = 15 * scale  # Tighter on bottom (no labels)
-        margin_right = 15 * scale   # Tighter on right (no labels)
+        margin_top = 38 * scale     # 2px tighter than left
+        margin_left = 40 * scale    # Keep at 40px for row labels
+        margin_bottom = 13 * scale  # 2px tighter (no labels)
+        margin_right = 13 * scale   # 2px tighter (no labels)
     else:
         # Symmetric margins when no labels
         margin_top = margin_left = margin_bottom = margin_right = 40 * scale
@@ -601,8 +601,8 @@ def render_position(cgp_string: str, output_path: str, supersample: int = 1, sho
     # Downsample for antialiasing (img is already RGB)
     # Use NEAREST or BOX to avoid creating gray halos during downsampling
     if show_labels:
-        final_width = BASE_BOARD_SIZE + 40 + 15  # 40px left + 15px right
-        final_height = BASE_BOARD_SIZE + 40 + 15  # 40px top + 15px bottom
+        final_width = BASE_BOARD_SIZE + 40 + 13   # 40px left + 13px right
+        final_height = BASE_BOARD_SIZE + 38 + 13  # 38px top + 13px bottom
     else:
         final_width = BASE_BOARD_SIZE + 80  # 40px each side
         final_height = BASE_BOARD_SIZE + 80
