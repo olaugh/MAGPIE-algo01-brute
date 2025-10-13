@@ -497,7 +497,8 @@ def draw_tile(img: Image.Image, draw: ImageDraw.Draw, letter: str,
         draw.text((val_x, val_y), value, fill=THEME['LETTER'], font=font_val_sized, anchor='mm')
 
 
-def render_position(cgp_string: str, output_path: str, supersample: int = 1, show_labels: bool = False):
+def render_position(cgp_string: str, output_path: str, supersample: int = 1, show_labels: bool = False,
+                   video_mode: bool = False, video_bg: Tuple[int, int, int] = (100, 32, 128)):
     """
     Render CGP position to PNG with antialiasing.
 
@@ -506,6 +507,8 @@ def render_position(cgp_string: str, output_path: str, supersample: int = 1, sho
         output_path: Output PNG file path
         supersample: Render at Nx resolution then downsample (default: 1, use 4 for final quality)
         show_labels: Show column (A-O) and row (1-15) labels around the board
+        video_mode: If True, render centered in 1920x1080 landscape frame
+        video_bg: Background color for video mode (default: purple 100, 32, 128)
     """
     # Parse CGP
     parts = cgp_string.strip().split()
@@ -576,9 +579,24 @@ def render_position(cgp_string: str, output_path: str, supersample: int = 1, sho
     final_size = BASE_BOARD_SIZE + 80  # 40px margin each side
     final_img = img.resize((final_size, final_size), Image.BOX)
 
+    # If video mode, compose centered in 1920x1080 frame
+    if video_mode:
+        video_width = 1920
+        video_height = 1080
+        video_frame = Image.new('RGB', (video_width, video_height), video_bg)
+
+        # Center the board horizontally and vertically
+        x_offset = (video_width - final_size) // 2
+        y_offset = (video_height - final_size) // 2
+
+        video_frame.paste(final_img, (x_offset, y_offset))
+        final_img = video_frame
+        print(f"Rendered {img.size[0]}×{img.size[1]}px → {final_size}×{final_size}px → {video_width}×{video_height}px (video mode, {supersample}x supersampling)")
+    else:
+        print(f"Rendered {img.size[0]}×{img.size[1]}px → {final_size}×{final_size}px ({supersample}x supersampling)")
+
     # Save
     final_img.save(output_path)
-    print(f"Rendered {img.size[0]}×{img.size[1]}px → {final_size}×{final_size}px ({supersample}x supersampling)")
     print(f"Saved to {output_path}")
 
 
@@ -668,12 +686,14 @@ def render_debug_squares(output_path: str, supersample: int = 4):
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python3 render_board.py [--theme THEME] [--supersample N] [--labels] <cgp_string> <output.png>")
-        print("   or: python3 render_board.py [--theme THEME] [--supersample N] [--labels] --file <position.cgp> <output.png>")
+        print("Usage: python3 render_board.py [--theme THEME] [--supersample N] [--labels] [--video] [--video-bg R,G,B] <cgp_string> <output.png>")
+        print("   or: python3 render_board.py [--theme THEME] [--supersample N] [--labels] [--video] [--video-bg R,G,B] --file <position.cgp> <output.png>")
         print("   or: python3 render_board.py --debug <output.png>")
         print("\nAvailable themes: dark-theme (default), light-theme")
         print("Supersample: 1 (default, fast), 4 (high quality)")
         print("--labels: Show row/column labels (A-O, 1-15)")
+        print("--video: Render centered in 1920x1080 landscape frame for video")
+        print("--video-bg: Background color for video mode (default: 100,32,128)")
         sys.exit(1)
 
     # Parse arguments
@@ -681,6 +701,8 @@ def main():
     theme_name = None
     supersample = 1
     show_labels = False
+    video_mode = False
+    video_bg = (100, 32, 128)
 
     # Check for --theme flag
     if '--theme' in args:
@@ -711,6 +733,30 @@ def main():
         show_labels = True
         args.remove('--labels')
 
+    # Check for --video flag
+    if '--video' in args:
+        video_mode = True
+        args.remove('--video')
+
+    # Check for --video-bg flag
+    if '--video-bg' in args:
+        bg_idx = args.index('--video-bg')
+        if bg_idx + 1 >= len(args):
+            print("Error: --video-bg requires R,G,B values", file=sys.stderr)
+            sys.exit(1)
+        try:
+            rgb_parts = args[bg_idx + 1].split(',')
+            if len(rgb_parts) != 3:
+                raise ValueError("Must provide exactly 3 values")
+            video_bg = tuple(int(x) for x in rgb_parts)
+            if not all(0 <= x <= 255 for x in video_bg):
+                raise ValueError("RGB values must be 0-255")
+        except ValueError as e:
+            print(f"Error: Invalid --video-bg format: {e}", file=sys.stderr)
+            sys.exit(1)
+        # Remove --video-bg and its argument
+        args = args[:bg_idx] + args[bg_idx + 2:]
+
     # Load theme if specified
     if theme_name:
         load_theme(theme_name)
@@ -729,14 +775,14 @@ def main():
         with open(args[1], 'r') as f:
             cgp_string = f.read().strip()
         output_path = args[2]
-        render_position(cgp_string, output_path, supersample, show_labels)
+        render_position(cgp_string, output_path, supersample, show_labels, video_mode, video_bg)
     else:
         if len(args) < 2:
             print("Error: Missing output file", file=sys.stderr)
             sys.exit(1)
         cgp_string = args[0]
         output_path = args[1]
-        render_position(cgp_string, output_path, supersample, show_labels)
+        render_position(cgp_string, output_path, supersample, show_labels, video_mode, video_bg)
 
 
 if __name__ == '__main__':
