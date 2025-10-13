@@ -413,15 +413,23 @@ def render_board(scale: int = 4, board: Optional[List[List[Optional[str]]]] = No
             round_corners_with_paint(draw, (x, y, x + tile_size, y + tile_size),
                                     corner_radius, THEME['BACKGROUND'])
 
-            # Draw premium square labels (TW, DW, TL, DL) on empty squares
+            # Draw premium square labels (3W, 2W, 3L, 2L) on empty squares
             if not (board and board[row][col]):
                 bonus_label = get_bonus_label(row, col)
                 if bonus_label and premium_font:
+                    # Create RGBA overlay for 90% opacity text
+                    text_overlay = Image.new('RGBA', img.size, (0, 0, 0, 0))
+                    text_draw = ImageDraw.Draw(text_overlay)
+
                     # Center the text in the gradient region
                     text_x = grad_x + gradient_size // 2
                     text_y = grad_y + gradient_size // 2
-                    draw.text((text_x, text_y), bonus_label, fill=(255, 255, 255),
-                             font=premium_font, anchor='mm')
+                    # White text at 90% opacity (255 * 0.9 = 229.5)
+                    text_draw.text((text_x, text_y), bonus_label, fill=(255, 255, 255, 230),
+                                  font=premium_font, anchor='mm')
+
+                    # Composite the text overlay onto the main image
+                    img = Image.alpha_composite(img.convert('RGBA'), text_overlay).convert('RGB')
 
     return img
 
@@ -561,7 +569,8 @@ def render_position(cgp_string: str, output_path: str, supersample: int = 1, sho
     import os
     font_dir = os.path.join(os.path.dirname(__file__), 'fonts')
     try:
-        premium_font = ImageFont.truetype(os.path.join(font_dir, 'Roboto-Bold.ttf'), int(14 * supersample))
+        # 15% larger than 14pt = 14 * 1.15 = 16.1pt
+        premium_font = ImageFont.truetype(os.path.join(font_dir, 'Roboto-Bold.ttf'), int(16.1 * supersample))
     except:
         premium_font = ImageFont.load_default()
 
