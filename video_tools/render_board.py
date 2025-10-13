@@ -5,13 +5,15 @@ Scrabble board renderer - generates PNG from CGP position string.
 Usage:
     python3 render_board.py "cgp_string" output.png
     python3 render_board.py --file position.cgp output.png
+    python3 render_board.py --theme light-theme "cgp_string" output.png
 """
 
 import sys
+import os
 from PIL import Image, ImageDraw, ImageFont
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Dict
 
-# Classic Scrabble colors (from colors.h)
+# Default theme (dark-theme)
 GRAY_16_PERCENT = (41, 41, 41)      # Background
 GRAY_20_PERCENT = (51, 51, 51)      # Empty squares
 GRAY_40_PERCENT = (102, 102, 102)   # Grid lines
@@ -22,6 +24,19 @@ PREMIUM_LIGHTBLUE = (120, 140, 180) # Double letter score (DLS)
 GOLDEN = (240, 220, 180)            # Tile background
 LETTER_COLOR = (0, 0, 0)            # Black letters
 DARKRED = (72, 16, 16)              # Blank tile outline
+
+# Current theme colors (updated by load_theme)
+THEME = {
+    'BACKGROUND': GRAY_16_PERCENT,
+    'EMPTY_SQUARE': GRAY_20_PERCENT,
+    'PREMIUM_RED': PREMIUM_RED,
+    'PREMIUM_PINK': PREMIUM_PINK,
+    'PREMIUM_DARKBLUE': PREMIUM_DARKBLUE,
+    'PREMIUM_LIGHTBLUE': PREMIUM_LIGHTBLUE,
+    'TILE': GOLDEN,
+    'LETTER': LETTER_COLOR,
+    'BLANK_OUTLINE': DARKRED,
+}
 
 # Board layout
 BOARD_DIM = 15
@@ -58,6 +73,46 @@ LETTER_VALUES = {
 }
 
 
+def load_theme(theme_name: str) -> None:
+    """
+    Load a color theme from themes directory.
+
+    Args:
+        theme_name: Name of theme file (with or without .txt extension)
+    """
+    global THEME
+
+    if not theme_name.endswith('.txt'):
+        theme_name += '.txt'
+
+    theme_dir = os.path.join(os.path.dirname(__file__), 'themes')
+    theme_path = os.path.join(theme_dir, theme_name)
+
+    if not os.path.exists(theme_path):
+        print(f"Warning: Theme file not found: {theme_path}", file=sys.stderr)
+        print(f"Using default theme", file=sys.stderr)
+        return
+
+    with open(theme_path, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+
+            if '=' in line:
+                key, value = line.split('=', 1)
+                key = key.strip()
+                value = value.strip()
+
+                # Parse RGB values
+                try:
+                    rgb = tuple(int(x.strip()) for x in value.split(','))
+                    if len(rgb) == 3:
+                        THEME[key] = rgb
+                except ValueError:
+                    print(f"Warning: Invalid color value for {key}: {value}", file=sys.stderr)
+
+
 def parse_cgp_board(board_string: str) -> List[List[Optional[str]]]:
     """Parse CGP board string into 15x15 grid."""
     board = [[None for _ in range(15)] for _ in range(15)]
@@ -85,14 +140,14 @@ def get_bonus_color(row: int, col: int) -> Tuple[int, int, int]:
     """Get color for bonus square at position."""
     pos = (row, col)
     if pos in BONUS_SQUARES['TWS']:
-        return PREMIUM_RED
+        return THEME['PREMIUM_RED']
     if pos in BONUS_SQUARES['DWS'] or pos == (7, 7):  # Center is DWS color
-        return PREMIUM_PINK
+        return THEME['PREMIUM_PINK']
     if pos in BONUS_SQUARES['TLS']:
-        return PREMIUM_DARKBLUE
+        return THEME['PREMIUM_DARKBLUE']
     if pos in BONUS_SQUARES['DLS']:
-        return PREMIUM_LIGHTBLUE
-    return GRAY_20_PERCENT
+        return THEME['PREMIUM_LIGHTBLUE']
+    return THEME['EMPTY_SQUARE']
 
 
 def round_corners_with_paint(draw: ImageDraw.Draw, bbox: Tuple[int, int, int, int],
@@ -277,7 +332,7 @@ def render_board(scale: int = 4, board: Optional[List[List[Optional[str]]]] = No
     img_height = board_size + 2 * margin
 
     # Create RGB image directly (no alpha channel = no anti-aliasing blending)
-    img = Image.new('RGB', (img_width, img_height), GRAY_16_PERCENT)
+    img = Image.new('RGB', (img_width, img_height), THEME['BACKGROUND'])
     draw = ImageDraw.Draw(img)
 
     # Draw board squares with concave gradient and rounded borders (like raylib)
@@ -296,7 +351,7 @@ def render_board(scale: int = 4, board: Optional[List[List[Optional[str]]]] = No
             # BUT still draw the background shape
             if board and board[row][col]:
                 # Draw background-colored square for proper masking
-                draw.rectangle([x, y, x + tile_size, y + tile_size], fill=GRAY_16_PERCENT)
+                draw.rectangle([x, y, x + tile_size, y + tile_size], fill=THEME['BACKGROUND'])
             else:
                 # Draw colored square for empty positions
                 color = get_bonus_color(row, col)
@@ -314,7 +369,7 @@ def render_board(scale: int = 4, board: Optional[List[List[Optional[str]]]] = No
             # Round the corners by painting over them with background color
             # This MUST be last so corners are clean
             round_corners_with_paint(draw, (x, y, x + tile_size, y + tile_size),
-                                    corner_radius, GRAY_16_PERCENT)
+                                    corner_radius, THEME['BACKGROUND'])
 
     return img
 
@@ -342,7 +397,7 @@ def draw_tile(img: Image.Image, draw: ImageDraw.Draw, letter: str,
     display_letter = letter.upper()
 
     # Draw tile background
-    draw.rectangle([x, y, x + tile_size, y + tile_size], fill=GOLDEN)
+    draw.rectangle([x, y, x + tile_size, y + tile_size], fill=THEME['TILE'])
 
     # Apply convex gradient overlay (tiles are raised)
     # MUST be done before rounding corners so gradient doesn't bleed into background
@@ -354,7 +409,7 @@ def draw_tile(img: Image.Image, draw: ImageDraw.Draw, letter: str,
     # Round the corners by painting over them with background color
     # This MUST be last so corners are clean
     round_corners_with_paint(draw, (x, y, x + tile_size, y + tile_size),
-                            corner_radius, GRAY_16_PERCENT)
+                            corner_radius, THEME['BACKGROUND'])
 
     # Letter
     if is_blank:
@@ -371,7 +426,7 @@ def draw_tile(img: Image.Image, draw: ImageDraw.Draw, letter: str,
     letter_x = grad_x + gradient_size // 2
     letter_y = grad_y + int((0.5 - LETTER_OFFSET_UP) * gradient_size)
 
-    draw.text((letter_x, letter_y), display_letter, fill=LETTER_COLOR, font=font_sized, anchor='mm')
+    draw.text((letter_x, letter_y), display_letter, fill=THEME['LETTER'], font=font_sized, anchor='mm')
 
     # Blank outline
     if is_blank:
@@ -381,7 +436,7 @@ def draw_tile(img: Image.Image, draw: ImageDraw.Draw, letter: str,
         blank_y = grad_y + blank_offset
         blank_radius = int(blank_size * 0.15)
         draw_rounded_rect(draw, (blank_x, blank_y, blank_x + blank_size, blank_y + blank_size),
-                         blank_radius, None, DARKRED, max(2, scale // 2))
+                         blank_radius, None, THEME['BLANK_OUTLINE'], max(2, scale // 2))
 
     # Point value
     elif display_letter in LETTER_VALUES:
@@ -396,7 +451,7 @@ def draw_tile(img: Image.Image, draw: ImageDraw.Draw, letter: str,
         val_x = grad_x + int(POINT_H_OFFSET * gradient_size)
         val_y = grad_y + int(POINT_V_OFFSET * gradient_size)
 
-        draw.text((val_x, val_y), value, fill=LETTER_COLOR, font=font_val_sized, anchor='mm')
+        draw.text((val_x, val_y), value, fill=THEME['LETTER'], font=font_val_sized, anchor='mm')
 
 
 def render_position(cgp_string: str, output_path: str, supersample: int = 4):
@@ -539,28 +594,51 @@ def render_debug_squares(output_path: str, supersample: int = 4):
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python3 render_board.py <cgp_string> <output.png>")
-        print("   or: python3 render_board.py --file <position.cgp> <output.png>")
+        print("Usage: python3 render_board.py [--theme THEME] <cgp_string> <output.png>")
+        print("   or: python3 render_board.py [--theme THEME] --file <position.cgp> <output.png>")
         print("   or: python3 render_board.py --debug <output.png>")
+        print("\nAvailable themes: dark-theme (default), light-theme")
         sys.exit(1)
 
-    if sys.argv[1] == '--debug':
-        output_path = sys.argv[2] if len(sys.argv) > 2 else 'debug_squares.png'
+    # Parse arguments
+    args = sys.argv[1:]
+    theme_name = None
+
+    # Check for --theme flag
+    if '--theme' in args:
+        theme_idx = args.index('--theme')
+        if theme_idx + 1 >= len(args):
+            print("Error: --theme requires a theme name", file=sys.stderr)
+            sys.exit(1)
+        theme_name = args[theme_idx + 1]
+        # Remove --theme and its argument
+        args = args[:theme_idx] + args[theme_idx + 2:]
+
+    # Load theme if specified
+    if theme_name:
+        load_theme(theme_name)
+
+    if len(args) == 0:
+        print("Error: No command provided", file=sys.stderr)
+        sys.exit(1)
+
+    if args[0] == '--debug':
+        output_path = args[1] if len(args) > 1 else 'debug_squares.png'
         render_debug_squares(output_path)
-    elif sys.argv[1] == '--file':
-        if len(sys.argv) < 4:
+    elif args[0] == '--file':
+        if len(args) < 3:
             print("Error: --file requires input and output file", file=sys.stderr)
             sys.exit(1)
-        with open(sys.argv[2], 'r') as f:
+        with open(args[1], 'r') as f:
             cgp_string = f.read().strip()
-        output_path = sys.argv[3]
+        output_path = args[2]
         render_position(cgp_string, output_path)
     else:
-        if len(sys.argv) < 3:
+        if len(args) < 2:
             print("Error: Missing output file", file=sys.stderr)
             sys.exit(1)
-        cgp_string = sys.argv[1]
-        output_path = sys.argv[2]
+        cgp_string = args[0]
+        output_path = args[1]
         render_position(cgp_string, output_path)
 
 
