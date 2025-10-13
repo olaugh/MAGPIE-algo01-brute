@@ -18,10 +18,34 @@ This fork demonstrates the evolution from naive to state-of-the-art Scrabble mov
 
 **Video Production Workflow**:
 - Use `bin/magpie autoplay` with `-printboards true -pretty true` to generate game visualizations
-- Process autoplay output (board diagrams + CGP strings) into video frames
+- Process autoplay output (board diagrams + CGP strings) into video frames using `video_tools/render_board.py`
 - Each video illustrates specific algorithmic improvements and their performance impact
 
 The fork maintains compatibility with upstream MAGPIE data structures and formats while adding instrumentation, alternate move generation paths (e.g., `-luwords`, `-lswords`), and enhanced debugging output for educational content creation.
+
+### Video Tools
+
+The `video_tools/` directory contains Python scripts for rendering Scrabble boards as images for video production:
+
+**render_board.py**: Main board rendering script
+- Renders CGP positions as PNG images
+- Supports 4x supersampling for high-quality output
+- Light and dark themes available in `themes/` directory
+- Video mode for 1920×1080 HD output with custom background colors
+- Row/column labels can be enabled with `--labels` flag
+
+**tile_renderer.py**: Reusable tile rendering module
+- Extracted tile rendering logic for use in other scripts
+- Renders individual Scrabble tiles with proper fonts, subscripts, and rounded corners
+- Supports custom tile colors, letter colors, and transparent backgrounds
+
+Example usage:
+```bash
+cd video_tools
+
+# Render a board position with light theme on purple background
+python3 render_board.py "cgp 15/15/15/15/15/15/15/7STEARIN/15/15/15/15/15/15/15 AEIMRST/ 0/0 0" output.png --theme light-theme --supersample 4 --video --video-bg 100,32,128 --labels
+```
 
 ## Build System
 
