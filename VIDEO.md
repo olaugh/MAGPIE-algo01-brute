@@ -130,6 +130,159 @@ For each 15-25 minute algorithm video:
 - Problem: what's slow and why
 - Solution preview: what optimization we'll implement
 
+---
+
+## First Video Structure (20 minutes)
+
+### Detailed Breakdown with Hook Strategy
+
+**0:00-0:10 - Title Screen (10 seconds)**
+```
+Bold title card: "I Made a Scrabble AI 60,000x Faster"
+Subtitle: "Part 1: From Brute Force to Binary Search"
+```
+
+**0:10-0:45 - Hook: Show the Payoff IMMEDIATELY (35 seconds)**
+
+This is the most critical part of the video. Show the extreme result before explaining anything.
+
+**Script example:**
+```
+"Watch this."
+
+[Split screen appears]
+Left: "Naive Implementation" - running timer visible
+Right: "Optimized" - running timer visible
+
+[Both start running]
+Left: 0:03... 0:05... 0:10... 0:30... 1:00... (keeps counting)
+Right: DONE in 0.05 seconds ✓
+
+"Same word list. Same board. Same tiles."
+"60,000 times faster."
+[Brief pause for impact]
+"Here's how I did it."
+```
+
+**Why this works:**
+- Visual proof in first 30 seconds (YouTube retention critical)
+- Creates curiosity: "How is that possible?"
+- Establishes stakes: the naive version is painfully slow
+- Promises value: you'll learn the technique
+
+**What NOT to do in the hook:**
+- ❌ "In this video, I'm going to show you..." (boring)
+- ❌ Long intro about yourself/project (nobody cares yet)
+- ❌ "Before we start, let me explain Scrabble rules..." (context comes later)
+- ❌ Slow build-up without payoff preview (viewers leave)
+
+**0:45-3:00 - The Problem Setup (~2 minutes)**
+- "I'm building a Scrabble AI from scratch..."
+- Show empty board, explain the challenge
+- "Here's the naive approach: generate every possible tile arrangement..."
+- Visualize brute force with animation
+- "Then check each one against 279,000 valid words..."
+- Show scrolling through word list (emphasize the tedium)
+- **First benchmark result**: "5 minutes 23 seconds. Completely unusable."
+
+**3:00-8:30 - Optimization #1: Binary Search (~5.5 minutes)**
+
+*Part A: The Insight (1 minute)*
+- "The problem: checking words linearly, one by one"
+- Show visual of scanning sequentially
+- "But if we sort the word list once..."
+- "We can use binary search"
+
+*Part B: Algorithm Explanation (2 minutes)*
+- Animated binary search visualization
+- Show the halving process with pointer movements
+- Comparison counter: 279,076 → 18 comparisons
+- Math: O(n) vs O(log n) with actual numbers
+
+*Part C: Implementation (1.5 minutes)*
+- Quick code walkthrough (key parts only)
+- Highlight comparison function
+- Show sort call and binary search loop
+
+*Part D: Results - FIRST PAYOFF (1 minute)*
+- **"Let's run it..."**
+- Show terminal with timing
+- **Reveal: 87 seconds** (down from 5+ minutes)
+- "3.7x faster already, but we can do better"
+- Celebration music sting/visual effect
+
+**8:30-15:00 - Optimization #2 & #3: Structural Improvements (~6.5 minutes)**
+
+*Teaser*: "Binary search helped, but we're still doing too much work..."
+
+*Part A: Cross-Sets (2 minutes)*
+- Show board with existing tiles
+- "Not every square can accept every letter"
+- Visualize cross-checks with overlays
+- Show pruning in action
+
+*Part B: Anchor Detection (2 minutes)*
+- "We don't need to try all 225 board positions"
+- Highlight valid anchor points
+- Show reduction: 225 → ~40 positions
+
+*Part C: Combined Results - SECOND PAYOFF (1.5 minutes)*
+- **"Now let's see the difference..."**
+- Run the optimized version
+- **Reveal: 5 seconds** (down from 87 seconds)
+- "17x faster than binary search alone"
+- "60,000x faster than where we started"
+
+*Part D: Why It Matters (1 minute)*
+- "5 seconds is playable. 5 minutes is not."
+- Side-by-side comparison montage
+- Graph showing cumulative speedups
+
+**15:00-18:30 - The Bigger Picture (~3.5 minutes)**
+
+*Part A: What We Learned (1.5 minutes)*
+- Recap three key ideas:
+  1. Binary search beats linear search
+  2. Pre-compute constraints (cross-sets)
+  3. Focus work on productive areas (anchors)
+
+*Part B: What's Next (1 minute)*
+- Tease next optimization (GADDAG/Trie)
+- "5 seconds → 50 milliseconds"
+- "Another 100x speedup"
+- Quick flash of trie diagram
+
+*Part C: The Journey Ahead (1 minute)*
+- Show roadmap with 15-20 optimizations
+- "From 5 minutes to 5 milliseconds"
+- "Million-fold improvement"
+
+**18:30-20:00 - Call to Action (~1.5 minutes)**
+- Subscribe for part 2
+- GitHub link
+- Credits and technical notes
+
+---
+
+## Pacing Principles
+
+**Never go more than 5 minutes without a concrete payoff:**
+- 0:30 - Hook payoff (see the 60,000x result)
+- 8:30 - First optimization payoff (binary search results)
+- 15:00 - Final payoff (combined 60,000x speedup)
+
+**Visual variety every 20-30 seconds:**
+- Switch between code, animations, board views, terminal output
+
+**Music cues:**
+- Upbeat during explanations
+- Tension building during benchmark runs
+- Celebration sting at reveals
+
+**Breathing room:**
+- After complex explanations, pause 2-3 seconds with visuals only
+- Let numbers sink in (show timer for 2-3 seconds after reveal)
+
 ### Deep Dive (10-18 minutes)
 - Algorithm explanation with visual diagrams
 - Code walkthrough (highlight key sections, not full implementation)
