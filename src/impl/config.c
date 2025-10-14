@@ -101,6 +101,7 @@ typedef enum {
   ARG_TOKEN_LOAD_SORTED_WORDS,
   ARG_TOKEN_TRACE_MOVEGEN,
   ARG_TOKEN_TRACE_WORD_LOOKUP,
+  ARG_TOKEN_TRACE_TILE_FREQUENCY,
   ARG_TOKEN_SIM_WITH_INFERENCE,
   ARG_TOKEN_WRITE_BUFFER_SIZE,
   ARG_TOKEN_HUMAN_READABLE,
@@ -168,6 +169,7 @@ struct Config {
   bool load_sorted_words;
   char *trace_movegen_path;
   char *trace_word_lookup_path;
+  int trace_tile_frequency;
   bool sim_with_inference;
   bool print_boards;
   char *record_filepath;
@@ -807,7 +809,8 @@ void impl_move_gen(Config *config, ErrorStack *error_stack) {
   }
 
   // Initialize trace logging if paths were provided
-  trace_init(config->trace_movegen_path, config->trace_word_lookup_path);
+  trace_init(config->trace_movegen_path, config->trace_word_lookup_path,
+             config->trace_tile_frequency);
 
   config_init_game(config);
   game_gen_all_cross_sets(config->game);
@@ -1150,6 +1153,10 @@ void impl_autoplay(Config *config, ErrorStack *error_stack) {
             "cannot autoplay without letter distribution and lexicon"));
     return;
   }
+
+  // Initialize trace logging if paths were provided
+  trace_init(config->trace_movegen_path, config->trace_word_lookup_path,
+             config->trace_tile_frequency);
 
   autoplay_results_set_options(
       config->autoplay_results,
@@ -2325,6 +2332,14 @@ void config_load_data(Config *config, ErrorStack *error_stack) {
     config->trace_word_lookup_path = string_duplicate(word_lookup_trace_path);
   }
 
+  // Tile log frequency (-1 = per anchor, 0 = every placement, N = every N
+  // placements)
+  config_load_int(config, ARG_TOKEN_TRACE_TILE_FREQUENCY, -1, INT_MAX,
+                  &config->trace_tile_frequency, error_stack);
+  if (!error_stack_is_empty(error_stack)) {
+    return;
+  }
+
   // Sim with inference
 
   config_load_bool(config, ARG_TOKEN_SIM_WITH_INFERENCE,
@@ -2876,6 +2891,7 @@ void config_create_default_internal(Config *config, ErrorStack *error_stack,
   arg(ARG_TOKEN_LOAD_SORTED_WORDS, "lswords", 1, 1);
   arg(ARG_TOKEN_TRACE_MOVEGEN, "tracemovegen", 1, 1);
   arg(ARG_TOKEN_TRACE_WORD_LOOKUP, "tracewordlookup", 1, 1);
+  arg(ARG_TOKEN_TRACE_TILE_FREQUENCY, "tilelogfreq", 1, 1);
   arg(ARG_TOKEN_SIM_WITH_INFERENCE, "sinfer", 1, 1);
   arg(ARG_TOKEN_HUMAN_READABLE, "hr", 1, 1);
   arg(ARG_TOKEN_WRITE_BUFFER_SIZE, "wb", 1, 1);
@@ -2921,6 +2937,7 @@ void config_create_default_internal(Config *config, ErrorStack *error_stack,
   config->load_sorted_words = false;
   config->trace_movegen_path = NULL;
   config->trace_word_lookup_path = NULL;
+  config->trace_tile_frequency = 0; // 0 = log every placement
   config->sim_with_inference = false;
   config->print_boards = false;
   config->game_variant = DEFAULT_GAME_VARIANT;

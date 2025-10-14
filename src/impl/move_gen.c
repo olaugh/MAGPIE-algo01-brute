@@ -32,6 +32,7 @@
 #include "../ent/static_eval.h"
 #include "../util/io_util.h"
 #include "../util/trace.h"
+#include "cgp.h"
 #include "wmp_move_gen.h"
 #include <assert.h>
 #include <stdbool.h>
@@ -691,17 +692,38 @@ void naive_recursive_gen(MoveGen *gen, int col, int leftstrip, int rightstrip,
     const MachineLetter ld_size = ld_get_size(&gen->ld);
     for (MachineLetter ml = 1; ml < ld_size; ml++) {
       const uint16_t number_of_ml = rack_get_letter(&gen->player_rack, ml);
+      bool allowed = board_is_letter_allowed_in_cross_set(possible_letters_here, ml);
+
+      // Trace: increment cross-set check counter
+      if (trace_movegen_enabled()) {
+        trace_movegen_increment_cross_set_check();
+      }
+
       if ((number_of_ml != 0 ||
            rack_get_letter(&gen->player_rack, BLANK_MACHINE_LETTER) != 0) &&
-          board_is_letter_allowed_in_cross_set(possible_letters_here, ml)) {
+          allowed) {
         // Try non-blank tile
         if (number_of_ml > 0) {
           leave_map_take_letter_and_update_current_index(&gen->leave_map,
                                                          &gen->player_rack, ml);
           gen->tiles_played++;
+
+          // Trace: record tile placement
+          if (trace_movegen_enabled()) {
+            trace_movegen_record_tile_placement(gen->current_row_index, col,
+                                                 *ld_ml_to_hl(&gen->ld, ml));
+            trace_movegen_print_tile_stats_if_needed();
+          }
+
           naive_go_on(gen, col, ml, leftstrip, rightstrip, unique_play,
                       main_word_score, word_multiplier, cross_score, word_list,
                       use_binary_search);
+
+          // Trace: record tile unplacement (backtracking)
+          if (trace_movegen_enabled()) {
+            trace_movegen_record_tile_unplacement(gen->current_row_index, col);
+          }
+
           gen->tiles_played--;
           leave_map_add_letter_and_update_current_index(&gen->leave_map,
                                                         &gen->player_rack, ml);
@@ -711,9 +733,24 @@ void naive_recursive_gen(MoveGen *gen, int col, int leftstrip, int rightstrip,
           leave_map_take_letter_and_update_current_index(
               &gen->leave_map, &gen->player_rack, BLANK_MACHINE_LETTER);
           gen->tiles_played++;
+
+          // Trace: record blank tile placement (blanked letters are lowercase)
+          if (trace_movegen_enabled()) {
+            trace_movegen_record_tile_placement(
+                gen->current_row_index, col,
+                *ld_ml_to_hl(&gen->ld, get_blanked_machine_letter(ml)));
+            trace_movegen_print_tile_stats_if_needed();
+          }
+
           naive_go_on(gen, col, get_blanked_machine_letter(ml), leftstrip,
                       rightstrip, unique_play, main_word_score, word_multiplier,
                       cross_score, word_list, use_binary_search);
+
+          // Trace: record blank tile unplacement (backtracking)
+          if (trace_movegen_enabled()) {
+            trace_movegen_record_tile_unplacement(gen->current_row_index, col);
+          }
+
           gen->tiles_played--;
           leave_map_add_letter_and_update_current_index(
               &gen->leave_map, &gen->player_rack, BLANK_MACHINE_LETTER);
@@ -747,6 +784,46 @@ static inline bool naive_check_word_and_record(
                               word_list, &candidate);
 
   if (word_found) {
+    // Trace: log move found with equity and leave
+    if (trace_movegen_enabled()) {
+      uint64_t ts_ns = trace_get_timestamp_ns();
+      char word_str[BOARD_DIM + 1];
+      for (int i = 0; i < candidate.length; i++) {
+        word_str[i] = *ld_ml_to_hl(&gen->ld, candidate.word[i]);
+      }
+      word_str[candidate.length] = '\0';
+
+      // Calculate score and equity
+      Equity bingo_bonus = 0;
+      if (gen->tiles_played == RACK_SIZE) {
+        bingo_bonus = gen->bingo_bonus;
+      }
+      Equity score =
+          main_word_score * word_multiplier + cross_scores + bingo_bonus;
+      Equity leave_value = leave_map_get_current_value(&gen->leave_map);
+      Equity equity = score + leave_value;
+
+      // Build leave string
+      char leave_str[RACK_SIZE + 1];
+      int leave_idx = 0;
+      const int ld_size = ld_get_size(&gen->ld);
+      for (int ml = 0; ml < ld_size; ml++) {
+        int count = rack_get_letter(&gen->player_rack, ml);
+        for (int j = 0; j < count; j++) {
+          leave_str[leave_idx++] = *ld_ml_to_hl(&gen->ld, ml);
+        }
+      }
+      leave_str[leave_idx] = '\0';
+
+      (void)fprintf(g_movegen_trace_file,
+                    "{\"timestamp_ns\":%llu,\"type\":\"move_found\","
+                    "\"word\":\"%s\",\"row\":%d,\"col\":%d,\"score\":%d,"
+                    "\"equity\":%.3f,\"leave\":\"%s\"}\n",
+                    (unsigned long long)ts_ns, word_str,
+                    gen->current_row_index, leftstrip, equity_to_int(score),
+                    equity_to_double(equity), leave_str);
+    }
+
     record_tile_placement_move(gen, leftstrip, rightstrip, main_word_score,
                                word_multiplier, cross_scores);
     return true;
@@ -914,14 +991,15 @@ void exhaustive_gen_recursive(MoveGen *gen, const Anchor *anchor, int start_col,
         int best_score = move_get_score(best_move);
         Equity best_equity = move_get_equity(best_move);
 
+        uint64_t ts_ns = trace_get_timestamp_ns();
         // Ignore fprintf return value - trace logging is non-critical
         (void)fprintf(g_movegen_trace_file,
-                      "{\"type\":\"move_found\",\"word\":\"%s\","
+                      "{\"timestamp_ns\":%llu,\"type\":\"move_found\",\"word\":\"%s\","
                       "\"row\":%u,\"col\":%d,\"dir\":\"%s\","
                       "\"tiles_played\":%d,\"leave\":\"%s\","
                       "\"leave_value\":%.3f,"
                       "\"best_score\":%d,\"best_equity\":%.3f}\n",
-                      word_str, anchor->row, start_col,
+                      (unsigned long long)ts_ns, word_str, anchor->row, start_col,
                       anchor->dir == BOARD_HORIZONTAL_DIRECTION ? "H" : "V",
                       tiles_played, leave_str, equity_to_double(leave_value),
                       best_score, equity_to_double(best_equity));
@@ -959,46 +1037,33 @@ void exhaustive_gen_recursive(MoveGen *gen, const Anchor *anchor, int start_col,
     }
 
     if (rack_get_letter(remaining_rack, ml) > 0) {
-      if (board_is_letter_allowed_in_cross_set(cross_set, ml)) {
+      bool allowed = board_is_letter_allowed_in_cross_set(cross_set, ml);
+
+      // Trace: increment cross-set check counter
+      if (trace_movegen_enabled()) {
+        trace_movegen_increment_cross_set_check();
+      }
+
+      if (allowed) {
         gen->playthrough_marked[pos] = ml;
         rack_take_letter(remaining_rack, ml);
 
-        // Trace: log tile placement
+        // Trace: record tile placement
         if (trace_movegen_enabled()) {
-          char word_so_far[BOARD_DIM + 1];
-          for (int i = 0; i <= pos; i++) {
-            if (gen->playthrough_marked[i] == PLAYED_THROUGH_MARKER) {
-              word_so_far[i] = *ld_ml_to_hl(
-                  &gen->ld, gen_cache_get_letter(gen, start_col + i));
-            } else {
-              word_so_far[i] =
-                  *ld_ml_to_hl(&gen->ld, gen->playthrough_marked[i]);
-            }
-          }
-          word_so_far[pos + 1] = '\0';
-
-          char remaining_str[RACK_SIZE + 1];
-          int rem_idx = 0;
-          for (int ml_i = 0; ml_i < ld_size; ml_i++) {
-            int count = rack_get_letter(remaining_rack, ml_i);
-            for (int j = 0; j < count; j++) {
-              remaining_str[rem_idx++] = *ld_ml_to_hl(&gen->ld, ml_i);
-            }
-          }
-          remaining_str[rem_idx] = '\0';
-
-          // Ignore fprintf return value - trace logging is non-critical
-          (void)fprintf(g_movegen_trace_file,
-                        "{\"type\":\"tile_placed\",\"row\":%u,\"col\":%d,"
-                        "\"tile\":\"%c\",\"word_so_far\":\"%s\","
-                        "\"remaining_rack\":\"%s\"}\n",
-                        anchor->row, board_col, *ld_ml_to_hl(&gen->ld, ml),
-                        word_so_far, remaining_str);
+          trace_movegen_record_tile_placement(anchor->row, board_col,
+                                               *ld_ml_to_hl(&gen->ld, ml));
+          trace_movegen_print_tile_stats_if_needed();
         }
 
         exhaustive_gen_recursive(gen, anchor, start_col, pos + 1,
                                  remaining_rack, word_length, word_list,
                                  use_binary_search);
+
+        // Trace: record tile unplacement
+        if (trace_movegen_enabled()) {
+          trace_movegen_record_tile_unplacement(anchor->row, board_col);
+        }
+
         rack_add_letter(remaining_rack, ml);
       }
     }
@@ -1010,7 +1075,14 @@ void exhaustive_gen_recursive(MoveGen *gen, const Anchor *anchor, int start_col,
       if (ml == BLANK_MACHINE_LETTER) {
         continue;
       }
-      if (board_is_letter_allowed_in_cross_set(cross_set, ml)) {
+      bool allowed = board_is_letter_allowed_in_cross_set(cross_set, ml);
+
+      // Trace: increment cross-set check counter
+      if (trace_movegen_enabled()) {
+        trace_movegen_increment_cross_set_check();
+      }
+
+      if (allowed) {
         gen->playthrough_marked[pos] = get_blanked_machine_letter(ml);
         rack_take_letter(remaining_rack, BLANK_MACHINE_LETTER);
         exhaustive_gen_recursive(gen, anchor, start_col, pos + 1,
@@ -1025,6 +1097,18 @@ void exhaustive_gen_recursive(MoveGen *gen, const Anchor *anchor, int start_col,
 void exhaustive_gen(MoveGen *gen, const Anchor *anchor) {
   assert(gen != NULL);
   assert(anchor != NULL);
+
+  // Trace: log anchor start and reset tile stats for this anchor
+  if (trace_movegen_enabled()) {
+    uint64_t ts_ns = trace_get_timestamp_ns();
+    // Ignore fprintf return value - trace logging is non-critical
+    (void)fprintf(g_movegen_trace_file,
+                  "{\"timestamp_ns\":%llu,\"type\":\"anchor_start\","
+                  "\"row\":%u,\"col\":%d,\"dir\":\"%s\"}\n",
+                  (unsigned long long)ts_ns, anchor->row, anchor->col,
+                  anchor->dir == BOARD_HORIZONTAL_DIRECTION ? "H" : "V");
+    trace_movegen_reset_tile_stats();
+  }
 
   // Use shadow data from gen (set during shadow playing)
   // max_tiles_to_play is already set by shadow_start()
@@ -1078,6 +1162,11 @@ void exhaustive_gen(MoveGen *gen, const Anchor *anchor) {
       exhaustive_gen_recursive(gen, anchor, start_col, 0, &remaining_rack,
                                word_length, word_list, use_binary_search);
     }
+  }
+
+  // Trace: log tile stats at anchor end (for per-anchor mode)
+  if (trace_movegen_enabled()) {
+    trace_movegen_print_tile_stats_for_anchor_end();
   }
 }
 
@@ -2205,6 +2294,17 @@ void gen_load_position(MoveGen *gen, const MoveGenArgs *args) {
   const KWG *override_kwg = args->override_kwg;
   gen->eq_margin_movegen = args->eq_margin_movegen;
 
+  // Trace: log position being loaded with CGP
+  if (trace_movegen_enabled()) {
+    uint64_t ts_ns = trace_get_timestamp_ns();
+    char *cgp_str = game_get_cgp(game, true);
+    (void)fprintf(g_movegen_trace_file,
+                  "{\"timestamp_ns\":%llu,\"type\":\"position_loaded\","
+                  "\"cgp\":\"%s\"}\n",
+                  (unsigned long long)ts_ns, cgp_str);
+    free(cgp_str);
+  }
+
   gen->board = game_get_board(game);
   gen->player_index = game_get_player_on_turn_index(game);
   const Player *player = game_get_player(game, gen->player_index);
@@ -2374,6 +2474,11 @@ void gen_record_scoring_plays(MoveGen *gen) {
       recursive_gen(gen, anchor.col, kwg_root_node_index, anchor.col,
                     anchor.col, gen->dir == BOARD_HORIZONTAL_DIRECTION, 0, 1,
                     0);
+    }
+
+    // Trace: log tile stats at anchor end (for per-anchor mode)
+    if (trace_movegen_enabled()) {
+      trace_movegen_print_tile_stats_for_anchor_end();
     }
 
     // If a better play has been found than should have been possible for
