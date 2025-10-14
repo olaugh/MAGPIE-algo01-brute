@@ -29,12 +29,17 @@ This document outlines technical specifications and best practices for creating 
 - 4K (3840×2160) - Overkill for code/algorithm content, huge file sizes
 
 **Frame Rate**:
-- **30fps** - Standard for educational content, smooth enough for animations
-- 60fps - Only needed if showing rapid real-time interactions (probably not necessary)
+- **60fps** - STANDARD for all videos in this series
+  - Comparable algorithm visualization channels use 60fps
+  - Manim defaults to 60fps
+  - Provides smoother animations for data structure visualizations
+  - Better for rapid updates in trace playback animations
+- 30fps - NOT RECOMMENDED (feels choppy compared to 60fps content)
 
-**Bitrate** (for H.264 @ 1080p30):
-- **8-12 Mbps** - Good quality for screen captures and animations
-- 15-20 Mbps - High quality if lots of fine detail (code, small text)
+**Bitrate** (for H.264 @ 1080p60):
+- **12-16 Mbps** - Good quality for screen captures and animations at 60fps
+- 18-24 Mbps - High quality if lots of fine detail (code, small text)
+- Note: 60fps requires ~1.5-2x the bitrate of 30fps for equivalent quality
 
 ### Color Space
 
@@ -46,7 +51,7 @@ This document outlines technical specifications and best practices for creating 
 
 - **Maximum file size**: 256 GB
 - **Maximum length**: 12 hours
-- For our 15-25 minute videos at 1080p30/10Mbps: ~1.5 GB per video (well within limits)
+- For our 15-25 minute videos at 1080p60/14Mbps: ~2.0-2.5 GB per video (well within limits)
 
 ## FFmpeg Export Command
 
@@ -92,11 +97,13 @@ manim --format=mp4 --media_dir ./output scene.py SceneName
 ```ini
 [CLI]
 resolution = 1920,1080
-frame_rate = 30
+frame_rate = 60
 pixel_format = rgba
 codec_name = libx264
 video_codec = h264
 ```
+
+**Note**: Manim defaults to 60fps, which aligns with our standard. Always verify frame rate settings when rendering.
 
 ## Text and Code Readability
 
@@ -299,6 +306,74 @@ Right: DONE in 0.05 seconds ✓
 - Teaser: next video's optimization
 - Call to action: like, subscribe, check GitHub repo
 
+## Board Rendering for Video Production
+
+### Fast Board Renderer
+
+The repository includes a fast board rendering system optimized for video production. It composites pre-rendered assets instead of drawing from scratch, achieving **~110ms render time** for a full game board at 1920x1080.
+
+#### Pre-rendered Assets
+
+Board backgrounds and tile images are stored in `board_assets/`:
+
+```
+board_assets/
+├── board_empty.png          # 1025x1025 - Empty board without labels
+├── board_empty_labeled.png  # 998x998 - Empty board with A-O/1-15 labels
+└── tiles/
+    ├── letter_A.png         # 63x63 - Regular tiles (A-Z)
+    ├── letter_B.png
+    ├── ...
+    ├── blank_a.png          # 63x63 - Blank tiles (lowercase)
+    └── blank_z.png
+```
+
+**Features:**
+- Premium square labels (3W, 2W, 3L, 2L) in white
+- White 5-pointed star in center square
+- 4x oversampled antialiasing
+- Golden tile color (240, 220, 180)
+- Light theme with rounded corners and gradients
+
+#### Regenerating Assets
+
+If you need to regenerate the board assets (e.g., after changing theme, tile color, or board styling):
+
+```bash
+# Regenerate empty board backgrounds
+python3 video_tools/generate_empty_boards.py
+
+# Regenerate tiles with custom color (R,G,B)
+python3 video_tools/generate_beautiful_tiles.py 240,220,180
+```
+
+**When to regenerate:**
+- Changed light theme colors in `video_tools/themes/light-theme.txt`
+- Modified tile styling in `video_tools/render_board.py`
+- Want different tile color
+- Updated premium square layout or labels
+
+#### Rendering Game Positions
+
+Use `fast_render_board.py` to quickly render positions:
+
+```bash
+# Basic usage (white background)
+python3 video_tools/fast_render_board.py --labels "CGP_STRING" output.png
+
+# With custom background color (R,G,B)
+python3 video_tools/fast_render_board.py --labels --bg 128,0,128 "CGP_STRING" output.png
+```
+
+**CGP Format:** Positions from MAGPIE autoplay include CGP strings you can copy directly:
+```bash
+./bin/magpie autoplay games 1 -seed 1337 -lex CSW21 -printboards true
+# Copy CGP line from output, then:
+python3 video_tools/fast_render_board.py --labels --bg 128,0,128 "PASTE_CGP_HERE" frame.png
+```
+
+**Performance:** ~110ms per frame, suitable for rendering video sequences.
+
 ## Asset Organization
 
 ### Directory Structure
@@ -341,7 +416,7 @@ videos/
 ## Quality Checklist
 
 Before uploading:
-- [ ] Video is 1080p30, H.264/AAC in MP4 container
+- [ ] Video is 1080p60, H.264/AAC in MP4 container
 - [ ] All text is readable on mobile device
 - [ ] Audio is clear, no background noise or clipping
 - [ ] Timing: No dead air longer than 1-2 seconds

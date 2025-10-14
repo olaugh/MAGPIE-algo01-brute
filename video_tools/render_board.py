@@ -7,10 +7,13 @@ Usage:
     python3 render_board.py --file position.cgp output.png
     python3 render_board.py --theme light-theme "cgp_string" output.png
     python3 render_board.py --supersample 4 "cgp_string" output.png
+    python3 render_board.py --fast "cgp_string" output.png  # Use pre-rendered assets
 """
 
 import sys
 import os
+import math
+from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 from typing import List, Tuple, Optional, Dict
 
@@ -166,17 +169,37 @@ def get_bonus_color(row: int, col: int) -> Tuple[int, int, int]:
 
 
 def get_bonus_label(row: int, col: int) -> Optional[str]:
-    """Get label text for bonus square at position (3W, 2W, 3L, 2L)."""
+    """Get label text for bonus square at position (3W, 2W, 3L, 2L). Returns None for center (star instead)."""
     pos = (row, col)
+    if pos == (7, 7):
+        return None  # Center gets a star, not a label
     if pos in BONUS_SQUARES['TWS']:
         return '3W'
-    if pos in BONUS_SQUARES['DWS'] or pos == (7, 7):
+    if pos in BONUS_SQUARES['DWS']:
         return '2W'
     if pos in BONUS_SQUARES['TLS']:
         return '3L'
     if pos in BONUS_SQUARES['DLS']:
         return '2L'
     return None
+
+
+def draw_star(draw: ImageDraw.Draw, center_x: float, center_y: float,
+              outer_radius: float, inner_radius: float, fill: Tuple[int, int, int]):
+    """Draw a 5-pointed star."""
+    points = []
+    for i in range(10):
+        angle = math.pi / 2 + (2 * math.pi * i / 10)  # Start at top
+        if i % 2 == 0:
+            # Outer point
+            r = outer_radius
+        else:
+            # Inner point
+            r = inner_radius
+        x = center_x + r * math.cos(angle)
+        y = center_y - r * math.sin(angle)
+        points.append((x, y))
+    draw.polygon(points, fill=fill)
 
 
 def round_corners_with_paint(draw: ImageDraw.Draw, bbox: Tuple[int, int, int, int],
@@ -413,15 +436,23 @@ def render_board(scale: int = 4, board: Optional[List[List[Optional[str]]]] = No
             round_corners_with_paint(draw, (x, y, x + tile_size, y + tile_size),
                                     corner_radius, THEME['BACKGROUND'])
 
-            # Draw premium square labels (3W, 2W, 3L, 2L) on empty squares
+            # Draw premium square labels (3W, 2W, 3L, 2L) or star on empty squares
             if not (board and board[row][col]):
-                bonus_label = get_bonus_label(row, col)
-                if bonus_label and premium_font:
-                    # Center the text in the gradient region
-                    text_x = grad_x + gradient_size // 2
-                    text_y = grad_y + gradient_size // 2
-                    draw.text((text_x, text_y), bonus_label, fill=(255, 255, 255),
-                             font=premium_font, anchor='mm')
+                # Draw star at center square
+                if row == 7 and col == 7:
+                    star_x = grad_x + gradient_size // 2
+                    star_y = grad_y + gradient_size // 2
+                    star_outer = 14 * scale  # Slightly bigger
+                    star_inner = 6 * scale   # Slightly bigger
+                    draw_star(draw, star_x, star_y, star_outer, star_inner, (255, 255, 255))
+                else:
+                    bonus_label = get_bonus_label(row, col)
+                    if bonus_label and premium_font:
+                        # Center the text in the gradient region
+                        text_x = grad_x + gradient_size // 2
+                        text_y = grad_y + gradient_size // 2
+                        draw.text((text_x, text_y), bonus_label, fill=(255, 255, 255),
+                                 font=premium_font, anchor='mm')
 
     return img
 
