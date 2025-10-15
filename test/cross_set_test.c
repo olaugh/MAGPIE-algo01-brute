@@ -51,8 +51,9 @@ void test_gen_cross_set_row(Game *game, int row, int col,
 }
 
 void test_classic_cross_set(void) {
-  Config *config = config_create_or_die(
-      "set -lex NWL20 -s1 score -s2 score -r1 all -r2 all -numplays 1");
+  Config *config =
+      config_create_or_die("set -lex NWL20 -s1 score -s2 score -r1 all -r2 all "
+                           "-numplays 1 -luwords true");
   Game *game = config_game_create(config);
   Board *board = game_get_board(game);
 

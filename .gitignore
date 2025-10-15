@@ -19,5 +19,7 @@ quackle
 oprofile_data
 cppcheck_*
 TODO
-CLAUDE.md
 *.DS_Store
+._*
+original-*.txt
+*.jsonl

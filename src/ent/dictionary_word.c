@@ -6,7 +6,9 @@
 #include "../ent/letter_distribution.h"
 #include "../util/io_util.h"
 #include "../util/string_util.h"
+#include "../util/trace.h"
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -177,6 +179,102 @@ void dictionary_word_list_unique(DictionaryWordList *sorted,
 void dictionary_word_list_destroy(DictionaryWordList *dictionary_word_list) {
   free(dictionary_word_list->dictionary_words);
   free(dictionary_word_list);
+}
+
+bool dictionary_word_list_contains_word_linear_search(
+    const DictionaryWordList *dictionary_word_list,
+    const DictionaryWord *word) {
+  int comparisons = 0;
+  bool found = false;
+
+  for (int i = 0; i < dictionary_word_list->count; i++) {
+    comparisons++;
+    int cmp_result = dictionary_word_compare(
+        &dictionary_word_list->dictionary_words[i], word);
+
+    // Trace: log each comparison
+    if (trace_word_lookup_enabled()) {
+      // Ignore fprintf return value - trace logging is non-critical
+      (void)fprintf(g_word_lookup_trace_file,
+                    "{\"type\":\"comparison\",\"method\":\"linear\","
+                    "\"index\":%d,\"cmp_result\":%d}\n",
+                    i, cmp_result);
+    }
+
+    if (cmp_result == 0) {
+      found = true;
+      break;
+    }
+  }
+
+  // Trace: log search result
+  if (trace_word_lookup_enabled()) {
+    // Ignore fprintf return value - trace logging is non-critical
+    (void)fprintf(g_word_lookup_trace_file,
+                  "{\"type\":\"search_complete\",\"method\":\"linear\","
+                  "\"found\":%s,\"comparisons\":%d}\n",
+                  found ? "true" : "false", comparisons);
+  }
+
+  return found;
+}
+
+bool dictionary_word_list_contains_word_binary_search(
+    const DictionaryWordList *dictionary_word_list,
+    const DictionaryWord *word) {
+  int left = 0;
+  int right = dictionary_word_list->count - 1;
+  int comparisons = 0;
+  bool found = false;
+
+  while (left <= right) {
+    int mid = left + (right - left) / 2;
+    comparisons++;
+    int cmp = dictionary_word_compare(
+        &dictionary_word_list->dictionary_words[mid], word);
+
+    // Trace: log each comparison with search bounds
+    if (trace_word_lookup_enabled()) {
+      // Ignore fprintf return value - trace logging is non-critical
+      (void)fprintf(g_word_lookup_trace_file,
+                    "{\"type\":\"comparison\",\"method\":\"binary\","
+                    "\"left\":%d,\"mid\":%d,\"right\":%d,\"cmp_result\":%d}\n",
+                    left, mid, right, cmp);
+    }
+
+    if (cmp == 0) {
+      found = true;
+      break;
+    }
+    if (cmp < 0) {
+      left = mid + 1;
+    } else {
+      right = mid - 1;
+    }
+  }
+
+  // Trace: log search result
+  if (trace_word_lookup_enabled()) {
+    // Ignore fprintf return value - trace logging is non-critical
+    (void)fprintf(g_word_lookup_trace_file,
+                  "{\"type\":\"search_complete\",\"method\":\"binary\","
+                  "\"found\":%s,\"comparisons\":%d}\n",
+                  found ? "true" : "false", comparisons);
+  }
+
+  return found;
+}
+
+bool dictionary_word_list_is_sorted(
+    const DictionaryWordList *dictionary_word_list) {
+  for (int i = 1; i < dictionary_word_list->count; i++) {
+    if (dictionary_word_compare(&dictionary_word_list->dictionary_words[i - 1],
+                                &dictionary_word_list->dictionary_words[i]) >
+        0) {
+      return false;
+    }
+  }
+  return true;
 }
 
 void dictionary_word_list_write_to_file(

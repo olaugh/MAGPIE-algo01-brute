@@ -25,6 +25,7 @@
 #include "../str/game_string.h"
 #include "../util/io_util.h"
 #include "../util/string_util.h"
+#include "cgp.h"
 #include "gameplay.h"
 #include "move_gen.h"
 #include "rack_list.h"
@@ -398,6 +399,12 @@ void game_runner_play_move(AutoplayWorker *autoplay_worker,
     }
     string_builder_add_game(game, game_runner->move_list,
                             autoplay_worker->args->game_string_options, output);
+    // Add CGP representation for debugging
+    char *cgp = game_get_cgp(game, false);
+    string_builder_add_string(output, "\nCGP: ");
+    string_builder_add_string(output, cgp);
+    string_builder_add_string(output, "\n");
+    free(cgp);
     string_builder_add_string(output, "\n");
     thread_control_print(autoplay_worker->args->thread_control,
                          string_builder_peek(output));

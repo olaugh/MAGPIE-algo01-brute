@@ -32,7 +32,15 @@ CLANG_TIDY_CHECKS="*,
                   -llvm-header-guard,
                   -cppcoreguidelines-avoid-non-const-global-variables"
 CLANG_TIDY_EXCLUDE_HEADER_FILTER="^(?!.*linenoise\.(c|h)).*"
-C_COMPILER_FLAGS="-std=c99 -Wno-trigraphs -D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L -D__linux__ -U_WIN32 -U__APPLE__ "
+
+# Detect platform and set appropriate compiler flags
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    # macOS - use native macOS defines
+    C_COMPILER_FLAGS="-std=c99 -Wno-trigraphs -D__APPLE__ -U_WIN32 -U__linux__ "
+else
+    # Linux/other - use Linux defines
+    C_COMPILER_FLAGS="-std=c99 -Wno-trigraphs -D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L -D__linux__ -U_WIN32 -U__APPLE__ "
+fi
 LOG_FILE=$(mktemp)
 # Ensure the temporary log file is removed when the script exits,
 # regardless of how it exits (success, failure, or interruption).
@@ -65,7 +73,8 @@ done
 #            which handles spaces or special characters in filenames correctly.
 # 'while IFS= read -r -d $'\0' C_FILE; do ... done': Reads null-separated filenames
 #                                                into the C_FILE variable.
-find $SEARCH_DIRECTORIES -name "*.c" -print0 | grep -zv "$EXCLUDE_PATTERN" | while IFS= read -r -d $'\0' C_FILE; do
+# Exclude macOS resource fork files (._*) from analysis
+find $SEARCH_DIRECTORIES -name "*.c" -print0 | grep -zv "$EXCLUDE_PATTERN" | grep -zv '/\._' | while IFS= read -r -d $'\0' C_FILE; do
     echo "Analyzing: $C_FILE"
 
     CLANG_TIDY_CMD="$CLANG_TIDY_EXEC \"$C_FILE\" \

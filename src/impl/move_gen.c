@@ -18,6 +18,7 @@
 #include "../ent/bit_rack.h"
 #include "../ent/board.h"
 #include "../ent/bonus_square.h"
+#include "../ent/dictionary_word.h"
 #include "../ent/equity.h"
 #include "../ent/game.h"
 #include "../ent/klv.h"
@@ -30,6 +31,8 @@
 #include "../ent/rack.h"
 #include "../ent/static_eval.h"
 #include "../util/io_util.h"
+#include "../util/trace.h"
+#include "cgp.h"
 #include "wmp_move_gen.h"
 #include <assert.h>
 #include <stdbool.h>
@@ -649,6 +652,522 @@ bool wordmap_gen_check_playthrough_and_crosses(MoveGen *gen, int word_idx,
     gen->playthrough_marked[letter_idx] = PLAYED_THROUGH_MARKER;
   }
   return true;
+}
+
+// Forward declarations for naive recursive generation
+static inline bool play_is_nonempty_and_nonduplicate(int tiles_played,
+                                                     bool is_unique);
+
+void naive_go_on(MoveGen *gen, int current_col, MachineLetter L, int leftstrip,
+                 int rightstrip, bool unique_play, int main_word_score,
+                 int word_multiplier, int cross_score,
+                 const DictionaryWordList *word_list, bool use_binary_search);
+
+// Naive recursive generation - like recursive_gen but places tiles
+// indiscriminately and validates against sorted/unsorted word list instead of
+// using KWG
+void naive_recursive_gen(MoveGen *gen, int col, int leftstrip, int rightstrip,
+                         bool unique_play, int main_word_score,
+                         int word_multiplier, int cross_score,
+                         const DictionaryWordList *word_list,
+                         bool use_binary_search) {
+
+  const MachineLetter current_letter = gen_cache_get_letter(gen, col);
+  // Like recursive_gen_alpha (wordsmog), we don't use left_extension_set
+  // since we're placing tiles indiscriminately without KWG pruning
+  uint64_t possible_letters_here = gen_cache_get_cross_set(gen, col);
+
+  if (possible_letters_here == 1) {
+    possible_letters_here = 0;
+  }
+
+  if (current_letter != ALPHABET_EMPTY_SQUARE_MARKER) {
+    // Play through existing letter
+    naive_go_on(gen, col, current_letter, leftstrip, rightstrip, unique_play,
+                main_word_score, word_multiplier, cross_score, word_list,
+                use_binary_search);
+  } else if (!rack_is_empty(&gen->player_rack) &&
+             ((possible_letters_here & gen->rack_cross_set) != 0)) {
+    // Try placing each letter from our rack (no KWG filtering)
+    const MachineLetter ld_size = ld_get_size(&gen->ld);
+    for (MachineLetter ml = 1; ml < ld_size; ml++) {
+      const uint16_t number_of_ml = rack_get_letter(&gen->player_rack, ml);
+      bool allowed = board_is_letter_allowed_in_cross_set(possible_letters_here, ml);
+
+      // Trace: increment cross-set check counter
+      if (trace_movegen_enabled()) {
+        trace_movegen_increment_cross_set_check();
+      }
+
+      if ((number_of_ml != 0 ||
+           rack_get_letter(&gen->player_rack, BLANK_MACHINE_LETTER) != 0) &&
+          allowed) {
+        // Try non-blank tile
+        if (number_of_ml > 0) {
+          leave_map_take_letter_and_update_current_index(&gen->leave_map,
+                                                         &gen->player_rack, ml);
+          gen->tiles_played++;
+
+          // Trace: record tile placement
+          if (trace_movegen_enabled()) {
+            trace_movegen_record_tile_placement(gen->current_row_index, col,
+                                                 *ld_ml_to_hl(&gen->ld, ml));
+            trace_movegen_print_tile_stats_if_needed();
+          }
+
+          naive_go_on(gen, col, ml, leftstrip, rightstrip, unique_play,
+                      main_word_score, word_multiplier, cross_score, word_list,
+                      use_binary_search);
+
+          // Trace: record tile unplacement (backtracking)
+          if (trace_movegen_enabled()) {
+            trace_movegen_record_tile_unplacement(gen->current_row_index, col);
+          }
+
+          gen->tiles_played--;
+          leave_map_add_letter_and_update_current_index(&gen->leave_map,
+                                                        &gen->player_rack, ml);
+        }
+        // Try blank
+        if (rack_get_letter(&gen->player_rack, BLANK_MACHINE_LETTER) > 0) {
+          leave_map_take_letter_and_update_current_index(
+              &gen->leave_map, &gen->player_rack, BLANK_MACHINE_LETTER);
+          gen->tiles_played++;
+
+          // Trace: record blank tile placement (blanked letters are lowercase)
+          if (trace_movegen_enabled()) {
+            trace_movegen_record_tile_placement(
+                gen->current_row_index, col,
+                *ld_ml_to_hl(&gen->ld, get_blanked_machine_letter(ml)));
+            trace_movegen_print_tile_stats_if_needed();
+          }
+
+          naive_go_on(gen, col, get_blanked_machine_letter(ml), leftstrip,
+                      rightstrip, unique_play, main_word_score, word_multiplier,
+                      cross_score, word_list, use_binary_search);
+
+          // Trace: record blank tile unplacement (backtracking)
+          if (trace_movegen_enabled()) {
+            trace_movegen_record_tile_unplacement(gen->current_row_index, col);
+          }
+
+          gen->tiles_played--;
+          leave_map_add_letter_and_update_current_index(
+              &gen->leave_map, &gen->player_rack, BLANK_MACHINE_LETTER);
+        }
+      }
+    }
+  }
+}
+
+// Helper to check if word in gen->strip is valid using word list search
+static inline bool naive_check_word_and_record(
+    MoveGen *gen, int leftstrip, int rightstrip, int main_word_score,
+    int word_multiplier, int cross_scores, const DictionaryWordList *word_list,
+    bool use_binary_search) {
+  // Build word from strip (unblank letters)
+  DictionaryWord candidate;
+  candidate.length = 0;
+  for (int col = leftstrip; col <= rightstrip; col++) {
+    MachineLetter ml = gen->strip[col];
+    if (ml == PLAYED_THROUGH_MARKER) {
+      ml = gen_cache_get_letter(gen, col);
+    }
+    candidate.word[candidate.length++] = get_unblanked_machine_letter(ml);
+  }
+
+  // Check if word is in dictionary
+  bool word_found = use_binary_search
+                        ? dictionary_word_list_contains_word_binary_search(
+                              word_list, &candidate)
+                        : dictionary_word_list_contains_word_linear_search(
+                              word_list, &candidate);
+
+  if (word_found) {
+    // Trace: log move found with equity and leave
+    if (trace_movegen_enabled()) {
+      uint64_t ts_ns = trace_get_timestamp_ns();
+      char word_str[BOARD_DIM + 1];
+      for (int i = 0; i < candidate.length; i++) {
+        word_str[i] = *ld_ml_to_hl(&gen->ld, candidate.word[i]);
+      }
+      word_str[candidate.length] = '\0';
+
+      // Calculate score and equity
+      Equity bingo_bonus = 0;
+      if (gen->tiles_played == RACK_SIZE) {
+        bingo_bonus = gen->bingo_bonus;
+      }
+      Equity score =
+          main_word_score * word_multiplier + cross_scores + bingo_bonus;
+      Equity leave_value = leave_map_get_current_value(&gen->leave_map);
+      Equity equity = score + leave_value;
+
+      // Build leave string
+      char leave_str[RACK_SIZE + 1];
+      int leave_idx = 0;
+      const int ld_size = ld_get_size(&gen->ld);
+      for (int ml = 0; ml < ld_size; ml++) {
+        int count = rack_get_letter(&gen->player_rack, ml);
+        for (int j = 0; j < count; j++) {
+          leave_str[leave_idx++] = *ld_ml_to_hl(&gen->ld, ml);
+        }
+      }
+      leave_str[leave_idx] = '\0';
+
+      (void)fprintf(g_movegen_trace_file,
+                    "{\"timestamp_ns\":%llu,\"type\":\"move_found\","
+                    "\"word\":\"%s\",\"row\":%d,\"col\":%d,\"score\":%d,"
+                    "\"equity\":%.3f,\"leave\":\"%s\"}\n",
+                    (unsigned long long)ts_ns, word_str,
+                    gen->current_row_index, leftstrip, equity_to_int(score),
+                    equity_to_double(equity), leave_str);
+    }
+
+    record_tile_placement_move(gen, leftstrip, rightstrip, main_word_score,
+                               word_multiplier, cross_scores);
+    return true;
+  }
+  return false;
+}
+
+// naive_go_on - like go_on but checks dictionary instead of KWG accepts bit
+void naive_go_on(MoveGen *gen, int current_col, MachineLetter L, int leftstrip,
+                 int rightstrip, bool unique_play, int main_word_score,
+                 int word_multiplier, int cross_score,
+                 const DictionaryWordList *word_list, bool use_binary_search) {
+  // Handle incremental scoring
+  const BonusSquare bonus_square = gen_cache_get_bonus_square(gen, current_col);
+  uint8_t letter_multiplier = 1;
+  uint8_t this_word_multiplier = 1;
+  bool fresh_tile = false;
+
+  const bool square_is_empty = gen_cache_is_empty(gen, current_col);
+  MachineLetter ml;
+  if (!square_is_empty) {
+    gen->strip[current_col] = PLAYED_THROUGH_MARKER;
+    ml = gen_cache_get_letter(gen, current_col);
+  } else {
+    gen->strip[current_col] = L;
+    ml = L;
+    fresh_tile = true;
+    this_word_multiplier = bonus_square_get_word_multiplier(bonus_square);
+    letter_multiplier = bonus_square_get_letter_multiplier(bonus_square);
+  }
+
+  int inc_word_multiplier = this_word_multiplier * word_multiplier;
+  const int lsm = gen->tile_scores[ml] * letter_multiplier;
+  int inc_main_word_score = lsm + main_word_score;
+  int inc_cross_scores = cross_score;
+
+  if (fresh_tile && gen_cache_get_is_cross_word(gen, current_col)) {
+    inc_cross_scores += (lsm + gen_cache_get_cross_score(gen, current_col)) *
+                        this_word_multiplier;
+  }
+
+  if (current_col <= gen->current_anchor_col) {
+    if (square_is_empty && gen->dir &&
+        gen_cache_get_cross_set(gen, current_col) == TRIVIAL_CROSS_SET) {
+      unique_play = true;
+    }
+    leftstrip = current_col;
+    bool no_letter_directly_left =
+        (current_col == 0) || gen_cache_is_empty(gen, current_col - 1);
+
+    // Check dictionary instead of KWG accepts
+    if (no_letter_directly_left &&
+        play_is_nonempty_and_nonduplicate(gen->tiles_played, unique_play)) {
+      naive_check_word_and_record(
+          gen, leftstrip, rightstrip, inc_main_word_score, inc_word_multiplier,
+          inc_cross_scores, word_list, use_binary_search);
+    }
+
+    // Continue left
+    if (current_col > 0 && current_col - 1 != gen->last_anchor_col) {
+      naive_recursive_gen(gen, current_col - 1, leftstrip, rightstrip,
+                          unique_play, inc_main_word_score, inc_word_multiplier,
+                          inc_cross_scores, word_list, use_binary_search);
+    }
+
+    // Continue right through anchor
+    // For naive generation, always allow continuing (don't check
+    // anchor_right_extension_set)
+    if (no_letter_directly_left && gen->current_anchor_col < BOARD_DIM - 1) {
+      naive_recursive_gen(gen, gen->current_anchor_col + 1, leftstrip,
+                          rightstrip, unique_play, inc_main_word_score,
+                          inc_word_multiplier, inc_cross_scores, word_list,
+                          use_binary_search);
+    }
+  } else {
+    if (square_is_empty && !unique_play && gen->dir &&
+        gen_cache_get_cross_set(gen, current_col) == TRIVIAL_CROSS_SET) {
+      unique_play = true;
+    }
+    rightstrip = current_col;
+    bool no_letter_directly_right = (current_col == BOARD_DIM - 1) ||
+                                    gen_cache_is_empty(gen, current_col + 1);
+
+    // Check dictionary instead of KWG accepts
+    if (no_letter_directly_right &&
+        play_is_nonempty_and_nonduplicate(gen->tiles_played, unique_play)) {
+      naive_check_word_and_record(
+          gen, leftstrip, rightstrip, inc_main_word_score, inc_word_multiplier,
+          inc_cross_scores, word_list, use_binary_search);
+    }
+
+    // Continue right
+    if (current_col < BOARD_DIM - 1) {
+      naive_recursive_gen(gen, current_col + 1, leftstrip, rightstrip,
+                          unique_play, inc_main_word_score, inc_word_multiplier,
+                          inc_cross_scores, word_list, use_binary_search);
+    }
+  }
+}
+
+// Brute-force exhaustive move generation using linear dictionary search
+// Recursively tries all tile permutations without KWG pruning
+void exhaustive_gen_recursive(MoveGen *gen, const Anchor *anchor, int start_col,
+                              int pos, Rack *remaining_rack, int word_length,
+                              const DictionaryWordList *word_list,
+                              bool use_binary_search) {
+  const int board_col = start_col + pos;
+
+  // Base case: we've filled the word
+  if (pos >= word_length) {
+    // Build a DictionaryWord from playthrough_marked to check dictionary
+    DictionaryWord candidate;
+    candidate.length = (uint8_t)word_length;
+    for (int i = 0; i < word_length; i++) {
+      if (gen->playthrough_marked[i] == PLAYED_THROUGH_MARKER) {
+        candidate.word[i] = get_unblanked_machine_letter(
+            gen_cache_get_letter(gen, start_col + i));
+      } else {
+        candidate.word[i] =
+            get_unblanked_machine_letter(gen->playthrough_marked[i]);
+      }
+    }
+
+    // Check if this word is in the dictionary
+    bool word_found = use_binary_search
+                          ? dictionary_word_list_contains_word_binary_search(
+                                word_list, &candidate)
+                          : dictionary_word_list_contains_word_linear_search(
+                                word_list, &candidate);
+
+    if (word_found) {
+      // Count actual tiles played (not playthroughs)
+      int tiles_played = 0;
+      for (int i = 0; i < word_length; i++) {
+        if (gen->playthrough_marked[i] != PLAYED_THROUGH_MARKER) {
+          tiles_played++;
+        }
+      }
+
+      // Calculate leave value
+      Equity leave_value = 0;
+      if (gen->number_of_tiles_in_bag > 0 && gen->klv) {
+        leave_value = klv_get_leave_value(gen->klv, remaining_rack);
+      }
+
+      // Trace: log move found with leave value and current best move
+      if (trace_movegen_enabled()) {
+        char word_str[BOARD_DIM + 1];
+        for (int i = 0; i < word_length; i++) {
+          word_str[i] = *ld_ml_to_hl(&gen->ld, candidate.word[i]);
+        }
+        word_str[word_length] = '\0';
+
+        char leave_str[RACK_SIZE + 1];
+        int leave_idx = 0;
+        for (int ml = 0; ml < ld_get_size(&gen->ld); ml++) {
+          int count = rack_get_letter(remaining_rack, ml);
+          for (int j = 0; j < count; j++) {
+            leave_str[leave_idx++] = *ld_ml_to_hl(&gen->ld, ml);
+          }
+        }
+        leave_str[leave_idx] = '\0';
+
+        const Move *best_move = gen_get_best_move(gen);
+        int best_score = move_get_score(best_move);
+        Equity best_equity = move_get_equity(best_move);
+
+        uint64_t ts_ns = trace_get_timestamp_ns();
+        // Ignore fprintf return value - trace logging is non-critical
+        (void)fprintf(g_movegen_trace_file,
+                      "{\"timestamp_ns\":%llu,\"type\":\"move_found\",\"word\":\"%s\","
+                      "\"row\":%u,\"col\":%d,\"dir\":\"%s\","
+                      "\"tiles_played\":%d,\"leave\":\"%s\","
+                      "\"leave_value\":%.3f,"
+                      "\"best_score\":%d,\"best_equity\":%.3f}\n",
+                      (unsigned long long)ts_ns, word_str, anchor->row, start_col,
+                      anchor->dir == BOARD_HORIZONTAL_DIRECTION ? "H" : "V",
+                      tiles_played, leave_str, equity_to_double(leave_value),
+                      best_score, equity_to_double(best_equity));
+      }
+
+      // Set fields for record_wmp_play
+      gen->wmp_move_gen.word_length = word_length;
+      const int saved_max_tiles = gen->max_tiles_to_play;
+      gen->max_tiles_to_play = tiles_played;
+
+      record_wmp_play(gen, start_col, leave_value);
+
+      // Restore max_tiles_to_play for next iteration
+      gen->max_tiles_to_play = saved_max_tiles;
+    }
+    return;
+  }
+
+  // If there's a letter on the board, we must play through it
+  if (!gen_cache_is_empty(gen, board_col)) {
+    gen->playthrough_marked[pos] = PLAYED_THROUGH_MARKER;
+    exhaustive_gen_recursive(gen, anchor, start_col, pos + 1, remaining_rack,
+                             word_length, word_list, use_binary_search);
+    return;
+  }
+
+  // Get cross set for this position
+  const uint64_t cross_set = gen_cache_get_cross_set(gen, board_col);
+
+  // Try each tile from the remaining rack
+  const int ld_size = ld_get_size(&gen->ld);
+  for (MachineLetter ml = 0; ml < ld_size; ml++) {
+    if (ml == BLANK_MACHINE_LETTER) {
+      continue; // Handle blanks separately
+    }
+
+    if (rack_get_letter(remaining_rack, ml) > 0) {
+      bool allowed = board_is_letter_allowed_in_cross_set(cross_set, ml);
+
+      // Trace: increment cross-set check counter
+      if (trace_movegen_enabled()) {
+        trace_movegen_increment_cross_set_check();
+      }
+
+      if (allowed) {
+        gen->playthrough_marked[pos] = ml;
+        rack_take_letter(remaining_rack, ml);
+
+        // Trace: record tile placement
+        if (trace_movegen_enabled()) {
+          trace_movegen_record_tile_placement(anchor->row, board_col,
+                                               *ld_ml_to_hl(&gen->ld, ml));
+          trace_movegen_print_tile_stats_if_needed();
+        }
+
+        exhaustive_gen_recursive(gen, anchor, start_col, pos + 1,
+                                 remaining_rack, word_length, word_list,
+                                 use_binary_search);
+
+        // Trace: record tile unplacement
+        if (trace_movegen_enabled()) {
+          trace_movegen_record_tile_unplacement(anchor->row, board_col);
+        }
+
+        rack_add_letter(remaining_rack, ml);
+      }
+    }
+  }
+
+  // Try using blanks as any letter
+  if (rack_get_letter(remaining_rack, BLANK_MACHINE_LETTER) > 0) {
+    for (MachineLetter ml = 0; ml < ld_size; ml++) {
+      if (ml == BLANK_MACHINE_LETTER) {
+        continue;
+      }
+      bool allowed = board_is_letter_allowed_in_cross_set(cross_set, ml);
+
+      // Trace: increment cross-set check counter
+      if (trace_movegen_enabled()) {
+        trace_movegen_increment_cross_set_check();
+      }
+
+      if (allowed) {
+        gen->playthrough_marked[pos] = get_blanked_machine_letter(ml);
+        rack_take_letter(remaining_rack, BLANK_MACHINE_LETTER);
+        exhaustive_gen_recursive(gen, anchor, start_col, pos + 1,
+                                 remaining_rack, word_length, word_list,
+                                 use_binary_search);
+        rack_add_letter(remaining_rack, BLANK_MACHINE_LETTER);
+      }
+    }
+  }
+}
+
+void exhaustive_gen(MoveGen *gen, const Anchor *anchor) {
+  assert(gen != NULL);
+  assert(anchor != NULL);
+
+  // Trace: log anchor start and reset tile stats for this anchor
+  if (trace_movegen_enabled()) {
+    uint64_t ts_ns = trace_get_timestamp_ns();
+    // Ignore fprintf return value - trace logging is non-critical
+    (void)fprintf(g_movegen_trace_file,
+                  "{\"timestamp_ns\":%llu,\"type\":\"anchor_start\","
+                  "\"row\":%u,\"col\":%d,\"dir\":\"%s\"}\n",
+                  (unsigned long long)ts_ns, anchor->row, anchor->col,
+                  anchor->dir == BOARD_HORIZONTAL_DIRECTION ? "H" : "V");
+    trace_movegen_reset_tile_stats();
+  }
+
+  // Use shadow data from gen (set during shadow playing)
+  // max_tiles_to_play is already set by shadow_start()
+
+  // Prefer sorted words (binary search) over unsorted (linear search)
+  const DictionaryWordList *word_list = gen->sorted_words;
+  bool use_binary_search = true;
+
+  if (!word_list) {
+    word_list = gen->unsorted_words;
+    use_binary_search = false;
+  }
+
+  if (!word_list) {
+    return; // Should not happen if called correctly
+  }
+
+  // Use last_anchor_col for duplicate prevention (like recursive_gen does)
+  // We can start a word anywhere from after the last anchor up to the current
+  // anchor
+  int leftmost_start_col = (anchor->last_anchor_col == BOARD_DIM)
+                               ? 0
+                               : (anchor->last_anchor_col + 1);
+  int rightmost_start_col = anchor->col;
+
+  // Try all possible starting positions
+  for (int start_col = leftmost_start_col; start_col <= rightmost_start_col;
+       start_col++) {
+
+    // Try different word lengths from start_col
+    // Note: Don't pre-filter by tiles_needed - exhaustive_gen_recursive handles
+    // playthroughs correctly
+    for (int word_length = 1; word_length <= BOARD_DIM - start_col;
+         word_length++) {
+      if (start_col + word_length > BOARD_DIM) {
+        break;
+      }
+
+      // Word must cover the anchor
+      if (start_col + word_length <= anchor->col) {
+        continue;
+      }
+
+      // Create a copy of the rack to track remaining tiles
+      Rack remaining_rack;
+      rack_copy(&remaining_rack, &gen->player_rack);
+
+      // Try to generate words of this length starting at start_col
+      // The recursive function will handle playthroughs and check tiles_needed
+      // correctly
+      exhaustive_gen_recursive(gen, anchor, start_col, 0, &remaining_rack,
+                               word_length, word_list, use_binary_search);
+    }
+  }
+
+  // Trace: log tile stats at anchor end (for per-anchor mode)
+  if (trace_movegen_enabled()) {
+    trace_movegen_print_tile_stats_for_anchor_end();
+  }
 }
 
 void wordmap_gen(MoveGen *gen, const Anchor *anchor) {
@@ -1662,7 +2181,6 @@ void shadow_play_for_anchor(MoveGen *gen, int col) {
   // Set leftx/rightx
   gen->anchor_left_extension_set = gen_cache_get_left_extension_set(gen, col);
   gen->anchor_right_extension_set = gen_cache_get_right_extension_set(gen, col);
-
   // Reset unrestricted multipliers
   gen->num_unrestricted_multipliers = 0;
   memset(gen->descending_effective_letter_multipliers, 0,
@@ -1701,6 +2219,9 @@ void shadow_play_for_anchor(MoveGen *gen, int col) {
     wmp_move_gen_add_anchors(&gen->wmp_move_gen, gen->current_row_index, col,
                              gen->last_anchor_col, gen->dir, &gen->anchor_heap);
   } else {
+    // For both KWG and linear word lists, use regular anchors with
+    // last_anchor_col This allows proper duplicate prevention like
+    // recursive_gen does
     anchor_heap_add_unheaped_anchor(
         &gen->anchor_heap, gen->current_row_index, col, gen->last_anchor_col,
         gen->dir, gen->highest_shadow_equity, gen->highest_shadow_score);
@@ -1708,9 +2229,18 @@ void shadow_play_for_anchor(MoveGen *gen, int col) {
 }
 
 void shadow_by_orientation(MoveGen *gen) {
+  // For naive generation with word lists (but NOT WMP), skip shadow playing
+  // entirely Just add all anchors directly to the heap WMP takes precedence and
+  // requires shadow playing with KWG
+  const bool has_wmp = wmp_move_gen_is_active(&gen->wmp_move_gen);
+  const bool using_word_lists_only =
+      !has_wmp && (gen->sorted_words || gen->unsorted_words);
+
   for (int row = 0; row < BOARD_DIM; row++) {
     gen->current_row_index = row;
-    if (gen->row_number_of_anchors_cache[BOARD_DIM * gen->dir + row] == 0) {
+    int num_anchors =
+        gen->row_number_of_anchors_cache[BOARD_DIM * gen->dir + row];
+    if (num_anchors == 0) {
       continue;
     }
     gen->last_anchor_col = INITIAL_LAST_ANCHOR_COL;
@@ -1718,7 +2248,16 @@ void shadow_by_orientation(MoveGen *gen) {
                          gen->current_row_index, gen->dir);
     for (int col = 0; col < BOARD_DIM; col++) {
       if (gen_cache_get_is_anchor(gen, col)) {
-        shadow_play_for_anchor(gen, col);
+        if (using_word_lists_only) {
+          // Naive generation: add anchor without shadow playing
+          // Move generation will happen in gen_record_scoring_plays
+          anchor_heap_add_unheaped_anchor(&gen->anchor_heap, row, col,
+                                          gen->last_anchor_col, gen->dir,
+                                          EQUITY_MAX_VALUE, EQUITY_MAX_VALUE);
+        } else {
+          // KWG/WMP generation: use shadow playing
+          shadow_play_for_anchor(gen, col);
+        }
 
         gen->last_anchor_col = col;
         // The next anchor to search after a playthrough tile should
@@ -1755,6 +2294,17 @@ void gen_load_position(MoveGen *gen, const MoveGenArgs *args) {
   const KWG *override_kwg = args->override_kwg;
   gen->eq_margin_movegen = args->eq_margin_movegen;
 
+  // Trace: log position being loaded with CGP
+  if (trace_movegen_enabled()) {
+    uint64_t ts_ns = trace_get_timestamp_ns();
+    char *cgp_str = game_get_cgp(game, true);
+    (void)fprintf(g_movegen_trace_file,
+                  "{\"timestamp_ns\":%llu,\"type\":\"position_loaded\","
+                  "\"cgp\":\"%s\"}\n",
+                  (unsigned long long)ts_ns, cgp_str);
+    free(cgp_str);
+  }
+
   gen->board = game_get_board(game);
   gen->player_index = game_get_player_on_turn_index(game);
   const Player *player = game_get_player(game, gen->player_index);
@@ -1764,6 +2314,8 @@ void gen_load_position(MoveGen *gen, const MoveGenArgs *args) {
   gen->kwg = player_get_kwg(player);
   gen->kwg = (override_kwg == NULL) ? player_get_kwg(player) : override_kwg;
   gen->klv = player_get_klv(player);
+  gen->unsorted_words = player_get_unsorted_words(player);
+  gen->sorted_words = player_get_sorted_words(player);
   gen->board_number_of_tiles_played = board_get_tiles_played(gen->board);
   rack_copy(&gen->opponent_rack, player_get_rack(opponent));
   rack_copy(&gen->player_rack, player_get_rack(player));
@@ -1904,11 +2456,29 @@ void gen_record_scoring_plays(MoveGen *gen) {
       recursive_gen_alpha(gen, anchor.col, anchor.col, anchor.col,
                           gen->dir == BOARD_HORIZONTAL_DIRECTION, 0, 1, 0);
     } else if (wmp_move_gen_is_active(&gen->wmp_move_gen)) {
+      // WMP takes precedence over luwords/lswords for comparison purposes
       wordmap_gen(gen, &anchor);
+    } else if (gen->sorted_words || gen->unsorted_words) {
+      // Use naive_recursive_gen (places tiles indiscriminately, validates with
+      // word list)
+      const DictionaryWordList *word_list = gen->sorted_words;
+      bool use_binary_search = true;
+      if (!word_list) {
+        word_list = gen->unsorted_words;
+        use_binary_search = false;
+      }
+      naive_recursive_gen(gen, anchor.col, anchor.col, anchor.col,
+                          gen->dir == BOARD_HORIZONTAL_DIRECTION, 0, 1, 0,
+                          word_list, use_binary_search);
     } else {
       recursive_gen(gen, anchor.col, kwg_root_node_index, anchor.col,
                     anchor.col, gen->dir == BOARD_HORIZONTAL_DIRECTION, 0, 1,
                     0);
+    }
+
+    // Trace: log tile stats at anchor end (for per-anchor mode)
+    if (trace_movegen_enabled()) {
+      trace_movegen_print_tile_stats_for_anchor_end();
     }
 
     // If a better play has been found than should have been possible for

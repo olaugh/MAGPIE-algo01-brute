@@ -33,6 +33,7 @@
 #include "../str/move_string.h"
 #include "../util/io_util.h"
 #include "../util/string_util.h"
+#include "../util/trace.h"
 #include "autoplay.h"
 #include "cgp.h"
 #include "convert.h"
@@ -96,6 +97,11 @@ typedef enum {
   ARG_TOKEN_MIN_PLAY_ITERATIONS,
   ARG_TOKEN_USE_GAME_PAIRS,
   ARG_TOKEN_USE_SMALL_PLAYS,
+  ARG_TOKEN_LOAD_UNSORTED_WORDS,
+  ARG_TOKEN_LOAD_SORTED_WORDS,
+  ARG_TOKEN_TRACE_MOVEGEN,
+  ARG_TOKEN_TRACE_WORD_LOOKUP,
+  ARG_TOKEN_TRACE_TILE_FREQUENCY,
   ARG_TOKEN_SIM_WITH_INFERENCE,
   ARG_TOKEN_WRITE_BUFFER_SIZE,
   ARG_TOKEN_HUMAN_READABLE,
@@ -159,6 +165,11 @@ struct Config {
   bool use_game_pairs;
   bool human_readable;
   bool use_small_plays;
+  bool load_unsorted_words;
+  bool load_sorted_words;
+  char *trace_movegen_path;
+  char *trace_word_lookup_path;
+  int trace_tile_frequency;
   bool sim_with_inference;
   bool print_boards;
   char *record_filepath;
@@ -329,6 +340,22 @@ bool config_get_use_small_plays(const Config *config) {
 
 bool config_get_human_readable(const Config *config) {
   return config->human_readable;
+}
+
+bool config_get_load_unsorted_words(const Config *config) {
+  return config->load_unsorted_words;
+}
+
+void config_set_load_unsorted_words(Config *config, bool load_unsorted_words) {
+  config->load_unsorted_words = load_unsorted_words;
+}
+
+bool config_get_load_sorted_words(const Config *config) {
+  return config->load_sorted_words;
+}
+
+void config_set_load_sorted_words(Config *config, bool load_sorted_words) {
+  config->load_sorted_words = load_sorted_words;
 }
 
 PlayersData *config_get_players_data(const Config *config) {
@@ -781,7 +808,13 @@ void impl_move_gen(Config *config, ErrorStack *error_stack) {
     return;
   }
 
+  // Initialize trace logging if paths were provided
+  trace_init(config->trace_movegen_path, config->trace_word_lookup_path,
+             config->trace_tile_frequency);
+
   config_init_game(config);
+  game_gen_all_cross_sets(config->game);
+  board_update_all_anchors(game_get_board(config->game));
   if (!config_get_use_small_plays(config)) {
     config_recreate_move_list(config, config_get_num_plays(config),
                               MOVE_LIST_TYPE_DEFAULT);
@@ -797,6 +830,9 @@ void impl_move_gen(Config *config, ErrorStack *error_stack) {
       .eq_margin_movegen = config->eq_margin_movegen,
   };
   generate_moves_for_game(&args);
+
+  // Close trace files when done
+  trace_close();
 }
 
 // Inference
@@ -1118,6 +1154,10 @@ void impl_autoplay(Config *config, ErrorStack *error_stack) {
     return;
   }
 
+  // Initialize trace logging if paths were provided
+  trace_init(config->trace_movegen_path, config->trace_word_lookup_path,
+             config->trace_tile_frequency);
+
   autoplay_results_set_options(
       config->autoplay_results,
       config_get_parg_value(config, ARG_TOKEN_AUTOPLAY, 0), error_stack);
@@ -1253,6 +1293,13 @@ char *impl_show(Config *config, ErrorStack *error_stack) {
   // Add the game to the string builder
   string_builder_add_game(config->game, NULL, config->game_string_options,
                           game_string);
+
+  // Add CGP representation for debugging
+  char *cgp = game_get_cgp(config->game, false);
+  string_builder_add_string(game_string, "\nCGP: ");
+  string_builder_add_string(game_string, cgp);
+  string_builder_add_string(game_string, "\n");
+  free(cgp);
 
   // Get the string and destroy the builder
   char *result = string_builder_dump(game_string, NULL);
@@ -1950,6 +1997,28 @@ void config_load_lexicon_dependent_data(Config *config,
     return;
   }
 
+  // Optionally load unsorted words if enabled
+  if (config->load_unsorted_words) {
+    players_data_set(config->players_data, PLAYERS_DATA_TYPE_UNSORTED_WORDS,
+                     config->data_paths, updated_p1_lexicon_name,
+                     updated_p2_lexicon_name, error_stack);
+
+    if (!error_stack_is_empty(error_stack)) {
+      return;
+    }
+  }
+
+  // Optionally load sorted words if enabled
+  if (config->load_sorted_words) {
+    players_data_set(config->players_data, PLAYERS_DATA_TYPE_SORTED_WORDS,
+                     config->data_paths, updated_p1_lexicon_name,
+                     updated_p2_lexicon_name, error_stack);
+
+    if (!error_stack_is_empty(error_stack)) {
+      return;
+    }
+  }
+
   // Load lexica (in WMP format)
 
   // For the wmp, we allow non-NULL -> NULL transitions.
@@ -2231,6 +2300,42 @@ void config_load_data(Config *config, ErrorStack *error_stack) {
 
   config_load_bool(config, ARG_TOKEN_USE_SMALL_PLAYS, &config->use_small_plays,
                    error_stack);
+  if (!error_stack_is_empty(error_stack)) {
+    return;
+  }
+
+  config_load_bool(config, ARG_TOKEN_LOAD_UNSORTED_WORDS,
+                   &config->load_unsorted_words, error_stack);
+  if (!error_stack_is_empty(error_stack)) {
+    return;
+  }
+
+  config_load_bool(config, ARG_TOKEN_LOAD_SORTED_WORDS,
+                   &config->load_sorted_words, error_stack);
+  if (!error_stack_is_empty(error_stack)) {
+    return;
+  }
+
+  // Trace file paths
+
+  const char *movegen_trace_path =
+      config_get_parg_value(config, ARG_TOKEN_TRACE_MOVEGEN, 0);
+  if (movegen_trace_path) {
+    free(config->trace_movegen_path);
+    config->trace_movegen_path = string_duplicate(movegen_trace_path);
+  }
+
+  const char *word_lookup_trace_path =
+      config_get_parg_value(config, ARG_TOKEN_TRACE_WORD_LOOKUP, 0);
+  if (word_lookup_trace_path) {
+    free(config->trace_word_lookup_path);
+    config->trace_word_lookup_path = string_duplicate(word_lookup_trace_path);
+  }
+
+  // Tile log frequency (-1 = per anchor, 0 = every placement, N = every N
+  // placements)
+  config_load_int(config, ARG_TOKEN_TRACE_TILE_FREQUENCY, -1, INT_MAX,
+                  &config->trace_tile_frequency, error_stack);
   if (!error_stack_is_empty(error_stack)) {
     return;
   }
@@ -2782,6 +2887,11 @@ void config_create_default_internal(Config *config, ErrorStack *error_stack,
   arg(ARG_TOKEN_EQ_MARGIN_MOVEGEN, "maxequitydifference", 1, 1);
   arg(ARG_TOKEN_USE_GAME_PAIRS, "gp", 1, 1);
   arg(ARG_TOKEN_USE_SMALL_PLAYS, "sp", 1, 1);
+  arg(ARG_TOKEN_LOAD_UNSORTED_WORDS, "luwords", 1, 1);
+  arg(ARG_TOKEN_LOAD_SORTED_WORDS, "lswords", 1, 1);
+  arg(ARG_TOKEN_TRACE_MOVEGEN, "tracemovegen", 1, 1);
+  arg(ARG_TOKEN_TRACE_WORD_LOOKUP, "tracewordlookup", 1, 1);
+  arg(ARG_TOKEN_TRACE_TILE_FREQUENCY, "tilelogfreq", 1, 1);
   arg(ARG_TOKEN_SIM_WITH_INFERENCE, "sinfer", 1, 1);
   arg(ARG_TOKEN_HUMAN_READABLE, "hr", 1, 1);
   arg(ARG_TOKEN_WRITE_BUFFER_SIZE, "wb", 1, 1);
@@ -2823,6 +2933,11 @@ void config_create_default_internal(Config *config, ErrorStack *error_stack,
   config->use_game_pairs = false;
   config->use_small_plays = false;
   config->human_readable = false;
+  config->load_unsorted_words = false;
+  config->load_sorted_words = false;
+  config->trace_movegen_path = NULL;
+  config->trace_word_lookup_path = NULL;
+  config->trace_tile_frequency = 0; // 0 = log every placement
   config->sim_with_inference = false;
   config->print_boards = false;
   config->game_variant = DEFAULT_GAME_VARIANT;
@@ -2871,5 +2986,7 @@ void config_destroy(Config *config) {
   conversion_results_destroy(config->conversion_results);
   game_string_options_destroy(config->game_string_options);
   free(config->data_paths);
+  free(config->trace_movegen_path);
+  free(config->trace_word_lookup_path);
   free(config);
 }
